@@ -149,10 +149,13 @@ def load_all_polls(verbose: bool = False) -> dict:
     if uniq:
         db["polls"].insert_many(uniq)
     db["polls"].create_index([("date", 1)])
+    # piega per istituto (house effect) vs risultati reali
+    from consenso.model.inference import compute_house_effects
+    n_house = compute_house_effects()
     dates = sorted({r["date"] for r in uniq})
     return {"rows": len(uniq),
             "polls": len({(r["pollster"], r["date"]) for r in uniq}),
-            "max_date": dates[-1] if dates else None}
+            "max_date": dates[-1] if dates else None, "house_effects": n_house}
 
 
 def main() -> int:

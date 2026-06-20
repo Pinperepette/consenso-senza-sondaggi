@@ -104,6 +104,29 @@ def trend():
     return jsonify({"party": party, "geo": geo, "run_id": run_id, "series": series})
 
 
+@api.get("/polls")
+def polls_cloud():
+    """Sondaggi grezzi per un partito (la 'nuvola' dietro la linea del trend)."""
+    party = request.args.get("party")
+    if not party:
+        return jsonify({"error": "param 'party' richiesto"}), 400
+    mx = int(request.args.get("max", 600))
+    rows = list(get_db()["polls"].find({"party_id": party},
+                                       {"_id": 0, "date": 1, "share": 1}).sort("date", 1))
+    if len(rows) > mx:                       # campiona uniformemente per leggibilita'
+        step = len(rows) / mx
+        rows = [rows[int(i * step)] for i in range(mx)]
+    return jsonify({"party": party, "points": rows})
+
+
+@api.get("/pollsters")
+def pollsters_house():
+    """Piega per istituto (house effect) vs i risultati reali."""
+    docs = list(get_db()["pollster_house"].find({}, {"_id": 0}))
+    docs.sort(key=lambda d: -d.get("abs_pts", 0))
+    return jsonify({"house": docs})
+
+
 @api.get("/map")
 def map_view():
     """GeoJSON: ultima stima per regione di un partito."""

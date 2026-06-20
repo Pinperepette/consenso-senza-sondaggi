@@ -10,7 +10,7 @@ import hashlib
 import io
 import os
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -49,21 +49,66 @@ POLL_OBS_SD = float(os.environ.get("CONSENSO_POLL_SD", "0.15"))
 
 
 def _poll_buckets(up_to_date: Optional[str]) -> Dict[str, Dict[str, float]]:
-    """Aggrega i sondaggi a livello mensile: per ogni mese, la media di ogni
-    partito su tutte le rilevazioni. Restituisce {data: {party_id: quota}}."""
+    """Aggrega i sondaggi a trimestre, DE-BIASANDO ogni rilevazione per la piega
+    nota del suo istituto (house effect). Restituisce {data: {party_id: quota}}."""
     from collections import defaultdict
 
+    house = {(h["pollster"], h["party_id"]): h["bias"]
+             for h in get_db()["pollster_house"].find({})}
     q: Dict = {}
     if up_to_date:
         q["date"] = {"$lte": up_to_date}
     by: Dict[str, Dict[str, list]] = defaultdict(lambda: defaultdict(list))
-    for r in get_db()["polls"].find(q, {"date": 1, "party_id": 1, "share": 1}):
+    proj = {"date": 1, "party_id": 1, "share": 1, "pollster": 1}
+    for r in get_db()["polls"].find(q, proj):
+        corr = r["share"] - house.get((r.get("pollster"), r["party_id"]), 0.0)
+        corr = max(corr, 0.001)               # corretto per la piega dell'istituto
         y, m = int(r["date"][:4]), int(r["date"][5:7])
         midq = ((m - 1) // 3) * 3 + 2          # mese centrale del trimestre: 2,5,8,11
-        key = f"{y}-{midq:02d}-15"
-        by[key][r["party_id"]].append(r["share"])
+        by[f"{y}-{midq:02d}-15"][r["party_id"]].append(corr)
     return {k: {p: float(np.mean(v)) for p, v in parts.items()}
             for k, parts in by.items()}
+
+
+HOUSE_WINDOW_DAYS = 45      # sondaggi "finali" considerati prima del voto
+HOUSE_MIN_ELECTIONS = 2     # serve la piega vista su almeno 2 elezioni
+
+
+def compute_house_effects() -> int:
+    """Stima la piega di ogni istituto (house effect) confrontando i suoi sondaggi
+    finali col risultato reale, per ogni elezione nazionale. Salva in
+    ``pollster_house`` un bias per (istituto, partito). Anchor = i voti veri."""
+    from collections import defaultdict
+
+    db = get_db()
+    acc: Dict[str, Dict[str, list]] = defaultdict(lambda: defaultdict(list))
+    elections = list(db[ELECTIONS].find(
+        {"type": {"$in": ["politiche", "europee"]}}).sort("date", 1))
+    for e in elections:
+        lvl = _finest_level(e["_id"])
+        if not lvl:
+            continue
+        votes, total = _national_shares(e["_id"], lvl)
+        if total <= 0:
+            continue
+        actual = {p: v / total for p, v in votes.items()}
+        lo = (date.fromisoformat(e["date"]) - timedelta(days=HOUSE_WINDOW_DAYS)).isoformat()
+        bypoll: Dict[str, Dict[str, list]] = defaultdict(lambda: defaultdict(list))
+        for r in db["polls"].find({"date": {"$gte": lo, "$lt": e["date"]}},
+                                  {"pollster": 1, "party_id": 1, "share": 1}):
+            bypoll[r.get("pollster")][r["party_id"]].append(r["share"])
+        for pollster, parts in bypoll.items():
+            for pid, shares in parts.items():
+                if pid in actual:
+                    acc[pollster][pid].append(float(np.mean(shares)) - actual[pid])
+    docs = [{"pollster": p, "party_id": pid, "bias": float(np.mean(errs)),
+             "abs_pts": round(abs(np.mean(errs)) * 100, 2), "n": len(errs)}
+            for p, parts in acc.items() for pid, errs in parts.items()
+            if p and len(errs) >= HOUSE_MIN_ELECTIONS]
+    db["pollster_house"].delete_many({})
+    if docs:
+        db["pollster_house"].insert_many(docs)
+    return len(docs)
 
 # numero massimo di partiti modellati esplicitamente (gli altri confluiscono nel
 # riferimento "Altri")

@@ -89,6 +89,11 @@
   .pillrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .pill{font-size:12px;padding:2px 9px;border-radius:20px;border:1px solid var(--line)}
   .muted{color:var(--muted)}
+  .house-grid{display:flex;flex-wrap:wrap;gap:6px}
+  .house-chip{display:inline-flex;align-items:center;gap:6px;background:#141b24;
+    border:1px solid #1c2530;border-radius:14px;padding:3px 9px;font-size:12px;color:#cdd6e0}
+  .house-chip i{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .house-chip b.up{color:#e2785b}.house-chip b.down{color:#5aa9e6}
 </style>
 </head>
 <body>
@@ -157,9 +162,14 @@
   <!-- TREND -->
   <section class="tab" id="tab-trend">
     <div class="card">
-      <h3>Evoluzione del consenso (2013 → 2024)</h3>
-      <div class="hint">media stimata per ciascun partito alle elezioni nazionali</div>
+      <h3>Evoluzione del consenso (2008 → oggi)</h3>
+      <div class="hint">linea = stato latente stimato (de-biasato) · nuvola = sondaggi grezzi dietro</div>
       <div id="chartwrap"><canvas id="trend"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Piega per istituto <span class="muted">(house effect)</span></h3>
+      <div class="hint">scarto medio dei sondaggi finali di ogni istituto rispetto al voto reale; il modello lo corregge prima di usarli</div>
+      <div id="house" class="house-grid"></div>
     </div>
   </section>
 
@@ -372,18 +382,41 @@ function paint(id){
 
 /* ---------- trend ---------- */
 let CHART;
+const dnum=d=>new Date(d).getTime()/86400000;        // giorni dall'epoch (asse x)
 async function loadTrend(){
   const ps=ALL_PARTIES.map(p=>"party:"+p);
-  const series=await Promise.all(ps.map(p=>j(`/trend?party=${p}`)));
-  const labels=[...new Set(series.flatMap(s=>s.series.map(x=>x.as_of)))].sort();
-  const ds=series.map((s,i)=>{const m=Object.fromEntries(s.series.map(x=>[x.as_of,x.mean*100]));
-    return{label:ALL_PARTIES[i],data:labels.map(l=>m[l]??null),borderColor:col(ps[i]),
-      backgroundColor:col(ps[i]),spanGaps:true,tension:.3,pointRadius:3,borderWidth:2};});
+  const [series,clouds]=await Promise.all([
+    Promise.all(ps.map(p=>j(`/trend?party=${p}`))),
+    Promise.all(ps.map(p=>j(`/polls?party=${p}&max=500`).catch(()=>({points:[]}))))]);
+  // linee = stato latente (de-biasato); nuvola = sondaggi grezzi dietro
+  const lines=series.map((s,i)=>({type:"line",label:ALL_PARTIES[i],
+    data:s.series.map(x=>({x:dnum(x.as_of),y:x.mean*100})),
+    borderColor:col(ps[i]),backgroundColor:col(ps[i]),
+    spanGaps:true,tension:.3,pointRadius:0,borderWidth:2,order:1}));
+  const cloud=clouds.map((c,i)=>({type:"scatter",label:ALL_PARTIES[i]+" (sondaggi)",
+    data:(c.points||[]).map(p=>({x:dnum(p.date),y:p.share*100})),
+    backgroundColor:col(ps[i])+"30",borderColor:"transparent",
+    pointRadius:1.6,order:2,showLine:false}));
   if(CHART)CHART.destroy();
-  CHART=new Chart(document.getElementById("trend"),{type:"line",data:{labels,datasets:ds},
-    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:"#cdd6e0",boxWidth:14}}},
-      scales:{x:{ticks:{color:"#8a97a8"},grid:{color:"#1c2530"}},
+  CHART=new Chart(document.getElementById("trend"),{data:{datasets:[...cloud,...lines]},
+    options:{maintainAspectRatio:false,animation:false,
+      plugins:{legend:{labels:{color:"#cdd6e0",boxWidth:14,
+        filter:it=>!it.text.includes("(sondaggi)")}},          // legenda solo per le linee
+        tooltip:{callbacks:{title:t=>new Date(t[0].parsed.x*86400000).toLocaleDateString("it-IT")}}},
+      scales:{x:{type:"linear",ticks:{color:"#8a97a8",maxTicksLimit:10,
+          callback:v=>new Date(v*86400000).getFullYear()},grid:{color:"#1c2530"}},
         y:{ticks:{color:"#8a97a8",callback:v=>v+"%"},grid:{color:"#1c2530"}}}}});
+}
+
+async function renderHouse(){
+  const el=document.getElementById("house"); if(!el)return;
+  const r=await j("/pollsters").catch(()=>({house:[]}));
+  const h=(r.house||[]).slice(0,18);
+  if(!h.length){el.innerHTML="<span class='muted'>piega non ancora calcolata (servono sondaggi vicini a un voto reale)</span>";return;}
+  el.innerHTML=h.map(d=>{const p=d.party_id.replace("party:","");const s=d.bias*100;
+    const sign=s>=0?"+":"";const cls=s>=0?"up":"down";
+    return `<span class="house-chip" title="su ${d.n} elezioni"><i style="background:${col(d.party_id)}"></i>`
+      +`${d.pollster} · ${p} <b class="${cls}">${sign}${s.toFixed(1)}</b></span>`;}).join("");
 }
 
 /* ---------- flows heatmap ---------- */
@@ -685,7 +718,7 @@ async function init(){
   GEO_PARTIES.forEach(p=>{const o=document.createElement("option");o.value="party:"+p;o.textContent=p;cp.appendChild(o);});
   ce.onchange=loadComunali; cp.onchange=loadComunali;
   await ensureMap("minimap");
-  await loadTrend(); await loadFlows(); renderIdentikit(); renderPartyRegions();
+  await loadTrend(); renderHouse(); await loadFlows(); renderIdentikit(); renderPartyRegions();
 }
 init();
 </script>
