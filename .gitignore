@@ -1,0 +1,21 @@
+# Dati grezzi scaricati (rigenerabili via scripts/autosync.py e i loader)
+data/raw/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Posterior samples / artefatti pesanti
+*.npz
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Mai versionare la cartella degli agent
+.claude/

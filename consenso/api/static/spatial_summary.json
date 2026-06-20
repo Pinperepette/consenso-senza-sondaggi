@@ -1,0 +1,185 @@
+{
+  "election_id": "elez:2022_politiche",
+  "parties": {
+    "FDI": {
+      "by_area": {
+        "NO": 32.0,
+        "NE": 33.2,
+        "C": 32.6,
+        "S": 22.4,
+        "I": 22.4
+      },
+      "income_corr": 0.29,
+      "employee_corr": 0.06,
+      "r2": 0.6,
+      "drivers": [
+        [
+          "lat",
+          0.507
+        ],
+        [
+          "long",
+          0.2
+        ],
+        [
+          "avg_income",
+          0.072
+        ],
+        [
+          "turnout",
+          0.049
+        ]
+      ]
+    },
+    "PD": {
+      "by_area": {
+        "NO": 15.9,
+        "NE": 17.6,
+        "C": 20.0,
+        "S": 16.6,
+        "I": 15.4
+      },
+      "income_corr": 0.14,
+      "employee_corr": -0.01,
+      "r2": 0.41,
+      "drivers": [
+        [
+          "lat",
+          0.23
+        ],
+        [
+          "long",
+          0.204
+        ],
+        [
+          "avg_income",
+          0.107
+        ],
+        [
+          "turnout",
+          0.104
+        ]
+      ]
+    },
+    "M5S": {
+      "by_area": {
+        "NO": 7.3,
+        "NE": 6.2,
+        "C": 12.6,
+        "S": 24.3,
+        "I": 21.7
+      },
+      "income_corr": -0.52,
+      "employee_corr": -0.02,
+      "r2": 0.83,
+      "drivers": [
+        [
+          "lat",
+          0.773
+        ],
+        [
+          "long",
+          0.072
+        ],
+        [
+          "pct_employee",
+          0.036
+        ],
+        [
+          "turnout",
+          0.027
+        ]
+      ]
+    },
+    "LEGA": {
+      "by_area": {
+        "NO": 15.4,
+        "NE": 13.9,
+        "C": 8.4,
+        "S": 7.2,
+        "I": 6.5
+      },
+      "income_corr": 0.28,
+      "employee_corr": 0.01,
+      "r2": 0.64,
+      "drivers": [
+        [
+          "lat",
+          0.609
+        ],
+        [
+          "long",
+          0.133
+        ],
+        [
+          "avg_income",
+          0.079
+        ],
+        [
+          "turnout",
+          0.039
+        ]
+      ]
+    },
+    "FI": {
+      "by_area": {
+        "NO": 9.0,
+        "NE": 7.1,
+        "C": 8.0,
+        "S": 13.0,
+        "I": 11.4
+      },
+      "income_corr": -0.35,
+      "employee_corr": -0.13,
+      "r2": 0.4,
+      "drivers": [
+        [
+          "long",
+          0.308
+        ],
+        [
+          "lat",
+          0.254
+        ],
+        [
+          "avg_income",
+          0.119
+        ],
+        [
+          "turnout",
+          0.087
+        ]
+      ]
+    },
+    "AVS": {
+      "by_area": {
+        "NO": 3.0,
+        "NE": 2.9,
+        "C": 3.0,
+        "S": 2.3,
+        "I": 2.7
+      },
+      "income_corr": 0.22,
+      "employee_corr": 0.02,
+      "r2": 0.19,
+      "drivers": [
+        [
+          "long",
+          0.224
+        ],
+        [
+          "lat",
+          0.201
+        ],
+        [
+          "avg_income",
+          0.142
+        ],
+        [
+          "pct_pension",
+          0.094
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,25 @@
+# --- Storage ---
+pymongo>=4.6
+# --- Validation / models ---
+pydantic>=2.5
+# --- Inference engine (Bayesian state-space + ecological inference) ---
+numpyro>=0.13
+jax>=0.4.20
+jaxlib>=0.4.20
+arviz>=0.17
+# --- Numerics ---
+numpy>=1.24
+scipy>=1.10
+pandas>=2.0
+# --- Scraping / ingestion ---
+httpx>=0.27
+lxml>=5.0
+beautifulsoup4>=4.12
+# --- Party reconciliation ---
+rapidfuzz>=3.6
+# --- API ---
+flask>=3.0
+# --- Scheduling / orchestration ---
+apscheduler>=3.10
+# --- Testing ---
+pytest>=8.0
