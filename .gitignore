@@ -1,5 +1,9 @@
 # Dati grezzi scaricati (rigenerabili via scripts/autosync.py e i loader)
-data/raw/
+data/raw/*
+# eccezioni: dati statici non auto-scaricabili, vanno versionati (scheda Partiti)
+!data/raw/mef_redditi.csv
+!data/raw/main.csv
+!data/raw/popolazione_2021.csv
 
 # Python
 __pycache__/

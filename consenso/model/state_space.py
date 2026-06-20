@@ -37,6 +37,7 @@ class ModelData:
     obs_sd: np.ndarray            # (N,) deviazione std di misura
     rw_scale_prior: float = 0.05
     include_polls: bool = False    # se i sondaggi alimentano lo stato (presente agganciato)
+    trend: bool = False            # dinamica local-linear-trend (livello+velocita') vs random walk
 
     @property
     def K(self) -> int:
@@ -65,7 +66,21 @@ def consensus_model(data: ModelData):
     # --- Stato iniziale e dinamica (random walk in tempo continuo, non centrato) ---
     eta0 = numpyro.sample("eta0", dist.Normal(jnp.zeros(Km1), 2.0).to_event(1))
     rw_scale = numpyro.sample("rw_scale", dist.HalfNormal(data.rw_scale_prior))
-    if T > 1:
+    if T > 1 and getattr(data, "trend", False):
+        # LOCAL LINEAR TREND: stato = livello + velocita' (la velocita' e' essa stessa
+        # un random walk). Estrapola la traiettoria recente, non la appiattisce.
+        vel_scale = numpyro.sample("vel_scale", dist.HalfNormal(0.01))
+        v0 = numpyro.sample("v0", dist.Normal(jnp.zeros(Km1), 0.02).to_event(1))
+        zv = numpyro.sample("zv", dist.Normal(jnp.zeros((T - 1, Km1)), 1.0).to_event(2))
+        v_steps = zv * (vel_scale * sqrt_dt[:, None])
+        v = jnp.concatenate([v0[None, :], v0[None, :] + jnp.cumsum(v_steps, axis=0)], axis=0)
+        z = numpyro.sample("z", dist.Normal(jnp.zeros((T - 1, Km1)), 1.0).to_event(2))
+        level_steps = v[:-1] * dt[:, None] + z * (rw_scale * sqrt_dt[:, None])
+        states = jnp.concatenate(
+            [eta0[None, :], eta0[None, :] + jnp.cumsum(level_steps, axis=0)], axis=0)
+        numpyro.deterministic("velocity", v)
+    elif T > 1:
+        # RANDOM WALK in tempo continuo (default)
         z = numpyro.sample("z", dist.Normal(jnp.zeros((T - 1, Km1)), 1.0).to_event(2))
         steps = z * (rw_scale * sqrt_dt[:, None])
         states = jnp.concatenate([eta0[None, :], eta0[None, :] + jnp.cumsum(steps, axis=0)],

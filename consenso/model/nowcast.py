@@ -5,6 +5,7 @@ distanza temporale dall'ultima elezione nazionale (random walk).
 """
 from __future__ import annotations
 
+import os
 from datetime import date
 from typing import Optional
 
@@ -34,24 +35,49 @@ def projected_shares(as_of: Optional[str] = None, run_id: Optional[str] = None):
     s = load_samples(run["_id"])
     states, rw = s["states"], s["rw_scale"]
     t0 = get_db()["elections"].find_one(sort=[("date", 1)])["date"]
+    last_poll_date = None
     if hp.get("include_polls"):
         # i sondaggi recenti tengono aggiornato lo stato: ancora all'ultimo punto
         anchor_idx = len(times) - 1
+        lastp = get_db()["polls"].find_one(sort=[("date", -1)])
+        last_poll_date = lastp["date"] if lastp else None
     else:
         # senza sondaggi: ancora all'ultima elezione NAZIONALE (le regionali distorcono)
         last_nat = get_db()["elections"].find_one(
             {"type": {"$in": ["politiche", "europee"]}}, sort=[("date", -1)])
         anchor_m = _months_between(t0, last_nat["date"]) if last_nat else max(times)
         anchor_idx = int(np.argmin([abs(t - anchor_m) for t in times]))
-    dt = max(_months_between(t0, as_of) - times[anchor_idx], 0.0)
+    # tempo REALE dell'ancora: coi sondaggi e' l'ultimo sondaggio (non il centro del
+    # trimestre), cosi' "oggi" non e' una proiezione fittizia di ~1 mese.
+    anchor_m = (_months_between(t0, last_poll_date) if last_poll_date
+                else times[anchor_idx])
+    dt = max(_months_between(t0, as_of) - anchor_m, 0.0)
     rng = np.random.default_rng(0)
-    proj = states[:, anchor_idx, :] + rng.normal(size=states[:, anchor_idx, :].shape) * (
-        rw[:, None] * np.sqrt(max(dt, 1e-6)))
+    anchor = states[:, anchor_idx, :]
+    # trend smorzato: il momentum recente conta nel breve e svanisce sul lungo
+    # (dt*phi^dt). Se il modello non e' un trend (niente velocity), e' random walk puro.
+    vel = s.get("velocity")
+    if vel is not None:
+        phi = float(os.environ.get("CONSENSO_TREND_DAMPING", "0.93"))
+        anchor = anchor + vel[:, anchor_idx, :] * (dt * (phi ** dt))
+    # fondamentale: costo del governare (gli incumbent si logorano sull'orizzonte)
+    from consenso.model.fundamentals import cost_of_governing_drift, governing_parties
+    gov = governing_parties(as_of)
+    anchor = anchor + cost_of_governing_drift(parties, ref_idx, gov, dt, econ_date=as_of)[None, :]
+    proj = anchor + rng.normal(size=anchor.shape) * (rw[:, None] * np.sqrt(max(dt, 1e-6)))
     shares = alr_inv_np(proj, ref_idx)
-    last_real = get_db()["elections"].find_one(sort=[("date", -1)])
+    # riferimento onesto: l'ultima elezione NAZIONALE (le regionali non lo sono)
+    last_nat = get_db()["elections"].find_one(
+        {"type": {"$in": ["politiche", "europee"]}}, sort=[("date", -1)])
+    polls_on = bool(hp.get("include_polls"))
+    anchor_date = None
+    if polls_on:
+        lastp = get_db()["polls"].find_one(sort=[("date", -1)])
+        anchor_date = lastp["date"] if lastp else None
     meta = {"as_of": as_of, "run_id": run["_id"], "projection_months": round(dt, 1),
-            "last_election": ({"type": last_real["type"], "date": last_real["date"]}
-                              if last_real else None)}
+            "polls_anchored": polls_on, "anchor_date": anchor_date,
+            "last_election": ({"type": last_nat["type"], "date": last_nat["date"]}
+                              if last_nat else None)}
     return parties, shares, meta
 
 

@@ -10,6 +10,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Dict, List, Optional
 
+import os
+
 import numpy as np
 
 from config import CONFIG
@@ -18,6 +20,8 @@ from consenso.db.schema import BACKTESTS, ELECTIONS
 from consenso.model.inference import (PARTY_ELECTION_TYPES, _finest_level,
                                       _months_between, _national_shares,
                                       load_samples)
+from consenso.model.fundamentals import (cost_of_governing_drift,
+                                         governing_parties)
 from consenso.model.transforms import alr_inv_np
 from consenso.pipeline.orchestrate import run_model
 
@@ -49,10 +53,11 @@ def _actual_shares(election_id: str, parties: List[str], ref_idx: int) -> Option
 
 
 def run_backtest(train_until: str, num_warmup: Optional[int] = None,
-                 num_samples: Optional[int] = None, include_polls: bool = False) -> Dict:
+                 num_samples: Optional[int] = None, include_polls: bool = False,
+                 trend: bool = False) -> Dict:
     # 1) addestra solo sul passato
     res = run_model(up_to_date=train_until, include_regional=False,
-                    include_polls=include_polls,
+                    include_polls=include_polls, trend=trend,
                     num_warmup=num_warmup, num_samples=num_samples)
     run_id = res["run_id"]
     run = get_db()["model_runs"].find_one({"_id": run_id})
@@ -67,6 +72,8 @@ def run_backtest(train_until: str, num_warmup: Optional[int] = None,
     rw = samples["rw_scale"]                     # (S,)
     beta = samples["beta"]                       # (S, n_types, K-1)
     last_state = states[:, -1, :]                # (S, K-1)
+    vel = samples.get("velocity")                # (S, T, K-1) se modello trend
+    last_vel = vel[:, -1, :] if vel is not None else None
 
     t0 = get_db()[ELECTIONS].find_one(sort=[("date", 1)])["date"]
     last_train_months = times[-1]
@@ -88,7 +95,12 @@ def run_backtest(train_until: str, num_warmup: Optional[int] = None,
         dt = max(tgt_months - last_train_months, 0.0)
         # proietta lo stato avanti + bias di tipo
         innov = rng.normal(0, 1, last_state.shape) * (rw[:, None] * np.sqrt(max(dt, 1e-6)))
-        proj = last_state + innov + beta[:, type_idx[e["type"]], :]
+        # trend smorzato: drift = vel * dt * phi^dt (svanisce sull'orizzonte lungo)
+        phi = float(os.environ.get("CONSENSO_TREND_DAMPING", "0.93"))
+        drift = (last_vel * (dt * (phi ** dt))) if last_vel is not None else 0.0
+        gd = cost_of_governing_drift(parties, ref_idx, governing_parties(train_until),
+                                     dt, econ_date=train_until)
+        proj = last_state + drift + gd[None, :] + innov + beta[:, type_idx[e["type"]], :]
         pred_shares = alr_inv_np(proj, ref_idx)          # (S, K)
 
         per_party = []

@@ -109,19 +109,42 @@ def sync(types=SUPPORTED, rerun: bool = True, limit: int = 0,
         except Exception as exc:  # noqa: BLE001
             errors.append({"path": "polls", "error": str(exc)[:160]})
 
+    # economia (misery index ISTAT/World Bank) per il "costo del governare"
+    econ_years = None
+    try:
+        from consenso.etl.sources.economy import fetch_misery
+        econ_years = fetch_misery()
+    except Exception as exc:  # noqa: BLE001
+        errors.append({"path": "economy", "error": str(exc)[:160]})
+
     rerun_info = None
     if model_relevant and rerun:
         from consenso.pipeline.orchestrate import run_model
         rerun_info = run_model(include_regional=True, include_polls=polls)
 
+    # dimensioni: genera il posizionamento dei partiti nuovi (se c'e' la chiave AI)
+    dims_added = 0
+    try:
+        from consenso.ai.deepseek import available
+        if available():
+            from consenso.model.dimensions import PARTY_NAMES, generate_all
+            have = set(get_db()["party_dimensions"].distinct("party_id"))
+            missing = [p for p in PARTY_NAMES if p not in have]
+            if missing:
+                dims_added = generate_all(missing)
+    except Exception as exc:  # noqa: BLE001
+        errors.append({"path": "dimensions", "error": str(exc)[:160]})
+
     status = {"_id": "last", "ts": _utcnow(), "new": new, "n_new": len(new),
               "skipped": len(skipped), "errors": errors, "rerun": rerun_info,
-              "polls": poll_info, "polls_changed": polls_changed}
+              "polls": poll_info, "polls_changed": polls_changed,
+              "econ_years": econ_years, "dims_added": dims_added}
     get_db()[SYNC_STATUS].replace_one({"_id": "last"}, status, upsert=True)
     audit("autosync", "sync", {"n_new": len(new), "errors": len(errors)})
     return {"n_new": len(new), "new": new, "skipped": len(skipped),
             "errors": errors, "rerun": rerun_info,
-            "polls": poll_info, "polls_changed": polls_changed}
+            "polls": poll_info, "polls_changed": polls_changed,
+            "econ_years": econ_years, "dims_added": dims_added}
 
 
 def last_status() -> Dict:

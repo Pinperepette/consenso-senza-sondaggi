@@ -356,6 +356,31 @@ def remove_feed():
     return jsonify({"feeds": feeds_list()})
 
 
+@api.get("/dimensions")
+def dimensions():
+    """Spazio dimensionale dei partiti: vettori 20D, mappa 2D (PCA), cluster,
+    vicini (prossimita' ideologica). Layer separato dal consenso."""
+    from consenso.model.dimensions import AXES, analysis, load_vectors
+    ids, _names, _mat, _keys = load_vectors()
+    if not ids:
+        return jsonify({"error": "dimensioni non ancora generate"}), 404
+    docs = {d["party_id"]: d for d in get_db()["party_dimensions"].find({})}
+    parties = [{"party_id": pid, "name": docs[pid].get("name"),
+                "scores": docs[pid]["scores"], "summary": docs[pid].get("summary", ""),
+                "source": docs[pid].get("source", "ai")} for pid in ids]
+    an = analysis()
+    cons = {}
+    try:
+        from consenso.model.nowcast import nowcast
+        cons = {p["party_id"]: p["mean"] for p in nowcast().get("parties", [])}
+    except Exception:  # noqa: BLE001
+        pass
+    for pt in an.get("points", []):
+        pt["consensus"] = cons.get(pt["party_id"], 0.0)
+    return jsonify({"axes": [{"key": k, "label": lbl} for k, lbl, _ in AXES],
+                    "parties": parties, **an})
+
+
 @api.get("/scenario/news")
 def scenario_news():
     """Ultimi titoli di politica dai feed RSS (anteprima)."""

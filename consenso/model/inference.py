@@ -45,7 +45,9 @@ BASE_OBS_SD = {
 # sull'errore reale misurato (~3,2 punti vs ~1,4 di margine campionario, cioe'
 # ~2,2x). I sondaggi entrano quindi come segnale DEBOLE/indicativo: i fatti
 # (le elezioni vere) restano le ancore forti.
-POLL_OBS_SD = float(os.environ.get("CONSENSO_POLL_SD", "0.15"))
+# la media trimestrale aggrega decine di sondaggi: l'errore residuo e' il "floor"
+# di herding (~1,5-2 punti), non i ~3,2 di un singolo sondaggio verso il voto futuro.
+POLL_OBS_SD = float(os.environ.get("CONSENSO_POLL_SD", "0.08"))
 
 
 def _poll_buckets(up_to_date: Optional[str]) -> Dict[str, Dict[str, float]]:
@@ -196,7 +198,8 @@ def assemble_model_data(election_ids: Optional[List[str]] = None,
                         up_to_date: Optional[str] = None,
                         max_parties: int = DEFAULT_MAX_PARTIES,
                         include_regional: bool = True,
-                        include_polls: bool = False) -> ModelData:
+                        include_polls: bool = False,
+                        trend: bool = False) -> ModelData:
     q: Dict = {"type": {"$in": list(PARTY_ELECTION_TYPES)}}
     if election_ids:
         q["_id"] = {"$in": election_ids}
@@ -337,7 +340,7 @@ def assemble_model_data(election_ids: Optional[List[str]] = None,
         obs_time_idx=np.asarray(obs_time_idx), obs_type_idx=np.asarray(obs_type_idx),
         obs_geo_idx=np.asarray(obs_geo_idx), obs_turnout_dev=np.asarray(obs_turnout_dev),
         obs_sd=np.asarray(obs_sd), rw_scale_prior=CONFIG.model.rw_scale_per_month,
-        include_polls=bool(poll_buckets),
+        include_polls=bool(poll_buckets), trend=trend,
     )
     return data
 

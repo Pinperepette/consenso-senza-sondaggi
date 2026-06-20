@@ -7,6 +7,9 @@ __pycache__/
 .venv/
 venv/
 data/raw/
+!data/raw/mef_redditi.csv
+!data/raw/main.csv
+!data/raw/popolazione_2021.csv
 .claude/
 .env
 .DS_Store

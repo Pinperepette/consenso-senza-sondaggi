@@ -30,12 +30,39 @@ def main() -> int:
     sh("scripts/init_db.py")
     sh("scripts/load_opendata.py")                 # politiche 2022 + europee 2024
     sh("scripts/load_regionali_2025.py", optional=True)
+    sh("scripts/load_comunali_catalogo.py", optional=True)   # scheda Comunali
     sh("scripts/load_polls.py")                    # sondaggi storici + live
-    print("\n>> run_model (con sondaggi)…", flush=True)
+    # fondamentali: economia (World Bank) per il costo del governare
+    try:
+        from consenso.etl.sources.economy import fetch_misery
+        print(f"\n>> economia: {fetch_misery()} anni di misery index", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"(economia saltata: {exc})", flush=True)
+    print("\n>> run_model (con sondaggi + trend + fondamentali)…", flush=True)
     from consenso.pipeline.orchestrate import run_model
     r = run_model(include_regional=True, include_polls=True)
     print(f"OK — run {r['run_id']}, {r['n_estimations']} stime, "
           f"{r['n_parties']} partiti.", flush=True)
+    sh("scripts/build_spatial_summary.py", optional=True)   # scheda Partiti (identikit)
+    # flussi elettorali (scheda Flussi): inferenza ecologica 2022 -> 2024
+    try:
+        from consenso.model.flow_pipeline import run_flow_model
+        # hierarchical=False: matrice nazionale aggregata (veloce); quella per-comune
+        # e' troppo pesante per il bootstrap.
+        run_flow_model("elez:2022_politiche", "elez:2024_europee", hierarchical=False)
+        print(">> flussi 2022->2024 calcolati", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"(flussi saltati: {exc})", flush=True)
+    # dimensioni (posizionamento): solo se c'e' la chiave AI
+    try:
+        from consenso.ai.deepseek import available
+        if available():
+            from consenso.model.dimensions import PARTY_NAMES, generate_all
+            print(f">> dimensioni: {generate_all(list(PARTY_NAMES))} partiti", flush=True)
+        else:
+            print(">> dimensioni: saltate (nessuna chiave AI)", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"(dimensioni saltate: {exc})", flush=True)
     print("Apri http://localhost:5057", flush=True)
     return 0
 

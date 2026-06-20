@@ -120,6 +120,7 @@
   <button data-tab="party">🪪 Partiti</button>
   <button data-tab="comunali">🏛️ Comunali</button>
   <button data-tab="scenari">🧪 Scenari AI</button>
+  <button data-tab="dimensioni">🧭 Dimensioni</button>
   <button data-tab="confronto">⚖️ Confronto</button>
 </nav>
 <div id="scenbanner" style="display:none;background:#231a10;border-bottom:1px solid #4a3a1a;
@@ -253,6 +254,24 @@
   </section>
 
   <!-- CONFRONTO SCENARI -->
+  <section class="tab" id="tab-dimensioni">
+    <div class="grid g2">
+      <div class="card">
+        <h3>🧭 Mappa ideologica <span class="muted">(posizionamento, non consenso)</span></h3>
+        <div class="hint">ogni partito è un punto nello spazio dei 20 descrittori (PCA 2D): <b>vicinanza = somiglianza</b>, <b>dimensione del punto = consenso attuale</b>.</div>
+        <div id="dimmapwrap" style="height:330px"><canvas id="dimmap"></canvas></div>
+        <div id="dimnear" class="hint" style="margin-top:10px"></div>
+      </div>
+      <div class="card">
+        <h3>Profilo per dimensione <select id="dimparty"></select></h3>
+        <div class="hint">i 20 assi del partito scelto (0-10).</div>
+        <div id="dimradarwrap" style="height:330px"><canvas id="dimradar"></canvas></div>
+        <div id="dimsummary" class="hint" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:14px">⚠️ Questo è il <b>posizionamento</b> (cosa rappresentano i partiti), un layer separato dal consenso. I punteggi sono stimati dall'AI dai programmi/linea pubblica, non sono voti.</div>
+  </section>
+
   <section class="tab" id="tab-confronto">
     <div class="grid g2">
       <div class="card">
@@ -310,7 +329,51 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==="trend"){setTimeout(()=>CHART&&CHART.resize(),60);}
   if(b.dataset.tab==="comunali"){ensureCmap().then(()=>{setTimeout(()=>cmap&&cmap.invalidateSize(),60);loadComunali();});}
   if(b.dataset.tab==="confronto"){loadSavedList();}
+  if(b.dataset.tab==="dimensioni"){loadDimensioni();}
 });
+
+/* ---------- dimensioni (spazio ideologico) ---------- */
+let DIM=null, DIMMAP=null, DIMRADAR=null;
+async function loadDimensioni(){
+  if(!DIM){
+    DIM=await j("/dimensions").catch(()=>({error:"errore"}));
+    if(DIM.error){document.getElementById("dimnear").textContent="⚠️ "+DIM.error+" (genera prima i descrittori)";return;}
+    const sel=document.getElementById("dimparty");sel.innerHTML="";
+    DIM.parties.forEach(p=>{const o=document.createElement("option");o.value=p.party_id;o.textContent=p.name;sel.appendChild(o);});
+    sel.onchange=()=>renderRadar(sel.value);
+  }
+  renderDimMap(); renderRadar(document.getElementById("dimparty").value);
+}
+function renderDimMap(){
+  const pts=DIM.points||[];
+  const ds=pts.map(p=>({label:p.name,data:[{x:p.x,y:p.y}],
+    backgroundColor:col(p.party_id)+"cc",borderColor:col(p.party_id),
+    pointRadius:6+(p.consensus||0)*70,pointHoverRadius:8+(p.consensus||0)*70}));
+  if(DIMMAP)DIMMAP.destroy();
+  DIMMAP=new Chart(document.getElementById("dimmap"),{type:"scatter",data:{datasets:ds},
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:"#cdd6e0",boxWidth:12}},
+      tooltip:{callbacks:{label:c=>c.dataset.label+"  (consenso "+Math.round((pts.find(p=>p.name===c.dataset.label)?.consensus||0)*100)+"%)"}}},
+      scales:{x:{ticks:{color:"#8a97a8"},grid:{color:"#1c2530"}},y:{ticks:{color:"#8a97a8"},grid:{color:"#1c2530"}}}}});
+  // vicini del leader / nota
+  const near=DIM.nearest||{};
+  document.getElementById("dimnear").innerHTML="<b>Prossimità</b> (chi somiglia a chi → da chi può pescare): "+
+    Object.entries(near).map(([pid,nn])=>`${pid.replace('party:','')}→${nn[0]?nn[0].name:''}`).slice(0,7).join(" · ");
+}
+function renderRadar(pid){
+  const p=(DIM.parties||[]).find(x=>x.party_id===pid)||DIM.parties[0];
+  const labels=DIM.axes.map(a=>a.label);
+  const data=DIM.axes.map(a=>p.scores[a.key]);
+  if(DIMRADAR)DIMRADAR.destroy();
+  DIMRADAR=new Chart(document.getElementById("dimradar"),{type:"radar",
+    data:{labels,datasets:[{label:p.name,data,borderColor:col(p.party_id),
+      backgroundColor:col(p.party_id)+"33",borderWidth:2,pointRadius:2}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{r:{min:0,max:10,ticks:{display:false,stepSize:2},
+        grid:{color:"#1c2530"},angleLines:{color:"#1c2530"},
+        pointLabels:{color:"#8a97a8",font:{size:9}}}}}});
+  document.getElementById("dimsummary").innerHTML=(p.summary?("<b>"+p.name+"</b>: "+p.summary+" "):"")+
+    `<span class="muted">(fonte: ${p.source==="ai"?"AI dai programmi":p.source})</span>`;
+}
 
 /* ---------- nowcast / bars / kpi ---------- */
 function renderBars(){
@@ -347,11 +410,18 @@ async function loadNowcast(asof){
   document.getElementById("asof").value=NC.as_of;
   document.getElementById("overdate").textContent="riferita al "+NC.as_of;
   const lr=NC.last_election;
-  document.getElementById("realbadge").textContent="dati reali → "+(lr?lr.date:"?");
+  document.getElementById("realbadge").textContent = NC.polls_anchored&&NC.anchor_date
+    ? "dati reali + sondaggi al "+NC.anchor_date
+    : "dati reali · ultimo voto nazionale "+(lr?lr.date:"?");
   const proj=NC.projection_months;
-  document.getElementById("projnote").innerHTML = proj>1
-    ? `⚠️ <b>Proiezione</b>: l'ultimo voto nazionale reale è ${lr?lr.type+" "+lr.date:"n/d"}. La stima al ${NC.as_of} è estrapolata di ${proj} mesi → intervalli ampi, non è una fotografia del presente.`
-    : `✓ Stima ancorata a un voto reale (${lr?lr.type+" "+lr.date:""}).`;
+  if(NC.polls_anchored){
+    document.getElementById("projnote").innerHTML =
+      `✓ <b>Presente</b>: stima agganciata ai sondaggi (al ${NC.anchor_date||"?"}), proiezione ${proj} mesi. L'ultimo voto <b>nazionale</b> reale è ${lr?lr.type+" "+lr.date:"n/d"} (le regionali non contano come voto nazionale). I sondaggi entrano come segnale debole, con il loro errore.`;
+  } else {
+    document.getElementById("projnote").innerHTML = proj>1
+      ? `⚠️ <b>Proiezione</b>: l'ultimo voto nazionale reale è ${lr?lr.type+" "+lr.date:"n/d"}. La stima al ${NC.as_of} è estrapolata di ${proj} mesi → intervalli ampi, non è una fotografia del presente.`
+      : `✓ Stima ancorata a un voto reale (${lr?lr.type+" "+lr.date:""}).`;
+  }
   SCEN=null;const sb=document.getElementById("scenbanner");if(sb)sb.style.display="none";
   renderKpi(); renderBars();
 }
