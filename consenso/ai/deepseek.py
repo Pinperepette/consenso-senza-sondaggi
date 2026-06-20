@@ -21,7 +21,10 @@ MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 
 @lru_cache(maxsize=1)
 def _api_key() -> str:
-    with open(KEY_PATH, encoding="utf-8") as fh:
+    env = os.environ.get("DEEPSEEK_API_KEY")
+    if env and env.strip():            # comodo per Docker: chiave via variabile
+        return env.strip()
+    with open(KEY_PATH, encoding="utf-8") as fh:   # default: file locale, mai nel codice
         return fh.read().strip()
 
 

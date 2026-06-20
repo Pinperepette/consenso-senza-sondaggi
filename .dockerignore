@@ -1,0 +1,14 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.npz
+.pytest_cache/
+.venv/
+venv/
+data/raw/
+.claude/
+.env
+.DS_Store
+docs/screenshots/
+*.md

@@ -19,3 +19,6 @@ venv/
 
 # Mai versionare la cartella degli agent
 .claude/
+
+# Segreti (chiavi API) — mai in git
+.env

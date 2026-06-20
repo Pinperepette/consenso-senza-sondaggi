@@ -88,6 +88,48 @@ python -m consenso.pipeline.scheduler    # nightly scheduler
 
 The AI scenarios read the DeepSeek key from `~/.server/deepseek.txt` (override with `DEEPSEEK_KEY_FILE`).
 
+## Docker
+
+Run the whole stack (Flask app + MongoDB) with Docker Compose:
+
+```bash
+docker compose up -d --build                          # build image, start MongoDB + app
+docker compose exec web python scripts/bootstrap.py   # one-time: load real data + first model run
+# open http://localhost:5057
+```
+
+- MongoDB data persists in the named volume `mongo-data` (survives restarts).
+- To pull new elections/polls and re-run the model: click **"Aggancia dati"** in the
+  dashboard, or `docker compose exec web python scripts/autosync.py`.
+
+### API keys (DeepSeek, for AI scenarios)
+
+The AI scenarios are optional — everything else works without a key. To enable them,
+provide a DeepSeek key. The key is **never** baked into the image: it is passed at
+runtime.
+
+Recommended — a **`.env` file** next to `docker-compose.yml` (Compose reads it
+automatically; it is gitignored and dockerignored, so the key never leaks):
+
+```bash
+cp .env.example .env
+# edit .env and set: DEEPSEEK_API_KEY=sk-...
+docker compose up -d
+```
+
+Alternatives:
+
+```bash
+# inline, for a single run
+DEEPSEEK_API_KEY=sk-... docker compose up -d
+
+# or keep using a key file and mount it (no copy of the secret), e.g. add to the
+# web service in docker-compose:  volumes: ["~/.server/deepseek.txt:/run/key:ro"]
+# and set:  DEEPSEEK_KEY_FILE=/run/key
+```
+
+Verify it's active: `curl localhost:5057/ai/status` should report `"available": true`.
+
 ## Dashboard tabs
 
 **Overview** · **Map** (winner per region / per‑party choropleth) · **Trend** · **Flows** (transfer heatmap) · **Parties** (profile + regional table) · **Municipal** (where national parties break through locally) · **AI Scenarios** · **Comparison** (baseline vs saved scenarios).
