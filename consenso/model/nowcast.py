@@ -58,7 +58,8 @@ def projected_shares(as_of: Optional[str] = None, run_id: Optional[str] = None):
     # (dt*phi^dt). Se il modello non e' un trend (niente velocity), e' random walk puro.
     vel = s.get("velocity")
     if vel is not None:
-        phi = float(os.environ.get("CONSENSO_TREND_DAMPING", "0.93"))
+        from consenso.model.calibration import param
+        phi = param("trend_damping")
         anchor = anchor + vel[:, anchor_idx, :] * (dt * (phi ** dt))
     # fondamentale: costo del governare (gli incumbent si logorano sull'orizzonte)
     from consenso.model.fundamentals import cost_of_governing_drift, governing_parties

@@ -44,6 +44,7 @@ def main() -> int:
     print(f"OK — run {r['run_id']}, {r['n_estimations']} stime, "
           f"{r['n_parties']} partiti.", flush=True)
     sh("scripts/build_spatial_summary.py", optional=True)   # scheda Partiti (identikit)
+    sh("scripts/calibrate.py", optional=True)               # auto-calibra phi/kappa sul backtest
     # flussi elettorali (scheda Flussi): inferenza ecologica 2022 -> 2024
     try:
         from consenso.model.flow_pipeline import run_flow_model

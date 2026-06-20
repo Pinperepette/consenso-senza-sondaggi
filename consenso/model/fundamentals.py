@@ -79,7 +79,8 @@ def cost_of_governing_drift(parties: List[str], ref_idx: int, gov: Set[str],
     modulato dall'economia (misery index): peggio va, piu' l'incumbent paga.
     """
     if kappa is None:
-        kappa = float(os.environ.get("CONSENSO_GOV_COST", "0.02"))
+        from consenso.model.calibration import param
+        kappa = param("gov_cost")
     if econ_date:
         kappa = kappa * economic_stress(econ_date)
     K = len(parties)

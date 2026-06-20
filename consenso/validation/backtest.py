@@ -96,7 +96,8 @@ def run_backtest(train_until: str, num_warmup: Optional[int] = None,
         # proietta lo stato avanti + bias di tipo
         innov = rng.normal(0, 1, last_state.shape) * (rw[:, None] * np.sqrt(max(dt, 1e-6)))
         # trend smorzato: drift = vel * dt * phi^dt (svanisce sull'orizzonte lungo)
-        phi = float(os.environ.get("CONSENSO_TREND_DAMPING", "0.93"))
+        from consenso.model.calibration import param
+        phi = param("trend_damping")
         drift = (last_vel * (dt * (phi ** dt))) if last_vel is not None else 0.0
         gd = cost_of_governing_drift(parties, ref_idx, governing_parties(train_until),
                                      dt, econ_date=train_until)

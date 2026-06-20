@@ -50,9 +50,11 @@ BASE_OBS_SD = {
 POLL_OBS_SD = float(os.environ.get("CONSENSO_POLL_SD", "0.08"))
 
 
-def _poll_buckets(up_to_date: Optional[str]) -> Dict[str, Dict[str, float]]:
+def _poll_buckets(up_to_date: Optional[str]) -> Dict[str, Dict]:
     """Aggrega i sondaggi a trimestre, DE-BIASANDO ogni rilevazione per la piega
-    nota del suo istituto (house effect). Restituisce {data: {party_id: quota}}."""
+    nota del suo istituto (house effect). Restituisce
+    {data: {"shares": {party_id: quota}, "n": n_rilevazioni}} dove n serve a pesare
+    il bucket (piu' sondaggi = piu' preciso; i trimestri recenti ne hanno di piu')."""
     from collections import defaultdict
 
     house = {(h["pollster"], h["party_id"]): h["bias"]
@@ -61,14 +63,16 @@ def _poll_buckets(up_to_date: Optional[str]) -> Dict[str, Dict[str, float]]:
     if up_to_date:
         q["date"] = {"$lte": up_to_date}
     by: Dict[str, Dict[str, list]] = defaultdict(lambda: defaultdict(list))
+    polls_in: Dict[str, set] = defaultdict(set)
     proj = {"date": 1, "party_id": 1, "share": 1, "pollster": 1}
     for r in get_db()["polls"].find(q, proj):
-        corr = r["share"] - house.get((r.get("pollster"), r["party_id"]), 0.0)
-        corr = max(corr, 0.001)               # corretto per la piega dell'istituto
+        corr = max(r["share"] - house.get((r.get("pollster"), r["party_id"]), 0.0), 0.001)
         y, m = int(r["date"][:4]), int(r["date"][5:7])
-        midq = ((m - 1) // 3) * 3 + 2          # mese centrale del trimestre: 2,5,8,11
-        by[f"{y}-{midq:02d}-15"][r["party_id"]].append(corr)
-    return {k: {p: float(np.mean(v)) for p, v in parts.items()}
+        key = f"{y}-{((m - 1) // 3) * 3 + 2:02d}-15"   # mese centrale del trimestre
+        by[key][r["party_id"]].append(corr)
+        polls_in[key].add((r.get("pollster"), r["date"]))
+    return {k: {"shares": {p: float(np.mean(v)) for p, v in parts.items()},
+                "n": max(1, len(polls_in[k]))}
             for k, parts in by.items()}
 
 
@@ -279,9 +283,9 @@ def assemble_model_data(election_ids: Optional[List[str]] = None,
         obs_turnout_dev.append(_turnout_dev(eid, etype))
         obs_sd.append(sd)
 
-    def add_poll_obs(pdate, pshares):
-        """Osservazione-sondaggio: scala politiche (beta=0), nazionale, varianza
-        grande (segnale indicativo). I partiti non rilevati confluiscono in Altri."""
+    def add_poll_obs(pdate, pshares, sd):
+        """Osservazione-sondaggio: scala politiche (beta=0), nazionale. ``sd`` pesa
+        il bucket per quanti sondaggi aggrega. I partiti non rilevati -> Altri."""
         shares = np.zeros(K); present = np.zeros(K, dtype=bool); acc = 0.0
         for pid, sh in pshares.items():
             if pid in pidx and pid != CONFIG.model.reference_party:
@@ -293,7 +297,7 @@ def assemble_model_data(election_ids: Optional[List[str]] = None,
         obs_type_idx.append(anchor_type_idx)
         obs_geo_idx.append(0)
         obs_turnout_dev.append(0.0)
-        obs_sd.append(POLL_OBS_SD)
+        obs_sd.append(sd)
 
     for e in elections:
         eid, etype, edate = e["_id"], e["type"], e["date"]
@@ -329,9 +333,11 @@ def assemble_model_data(election_ids: Optional[List[str]] = None,
                 if rtot > 0:
                     add_obs(rvotes, rtot, etype, edate, region_slot(reg), sd * 1.3)
 
-    # sondaggi: segnale debole, scala politiche, nazionale (canale opzionale)
-    for pdate, pshares in poll_buckets.items():
-        add_poll_obs(pdate, pshares)
+    # sondaggi: segnale debole pesato per numero di rilevazioni del trimestre
+    # (piu' sondaggi -> sd minore; i trimestri recenti pesano di piu').
+    for pdate, info in poll_buckets.items():
+        sd = float(np.clip(POLL_OBS_SD * np.sqrt(8.0 / info["n"]), 0.05, 0.18))
+        add_poll_obs(pdate, info["shares"], sd)
 
     data = ModelData(
         parties=parties, ref_idx=ref_idx, election_types=types,
