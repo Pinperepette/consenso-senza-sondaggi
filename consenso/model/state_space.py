@@ -36,6 +36,7 @@ class ModelData:
     obs_turnout_dev: np.ndarray   # (N,) scarto affluenza
     obs_sd: np.ndarray            # (N,) deviazione std di misura
     rw_scale_prior: float = 0.05
+    include_polls: bool = False    # se i sondaggi alimentano lo stato (presente agganciato)
 
     @property
     def K(self) -> int:

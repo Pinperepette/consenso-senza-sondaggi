@@ -59,8 +59,9 @@ def _done_paths() -> set:
 
 
 def sync(types=SUPPORTED, rerun: bool = True, limit: int = 0,
-         since_year: int = DEFAULT_SINCE_YEAR) -> Dict:
-    """Scarica e ingerisce le elezioni nuove dei tipi indicati."""
+         since_year: int = DEFAULT_SINCE_YEAR, polls: bool = True) -> Dict:
+    """Scarica e ingerisce le elezioni nuove dei tipi indicati e, se ``polls``,
+    aggiorna anche i sondaggi (statistiche, da Wikipedia live)."""
     from scripts.load_regionali_2025 import (ingest_comunali_zip,
                                              ingest_regionali_zip)
 
@@ -92,17 +93,35 @@ def sync(types=SUPPORTED, rerun: bool = True, limit: int = 0,
         except Exception as exc:  # noqa: BLE001
             errors.append({"path": e["path"], "error": str(exc)[:160]})
 
+    # sondaggi (statistiche): refresh live da Wikipedia; se cambiano, re-stima
+    poll_info, polls_changed = None, False
+    if polls:
+        try:
+            from scripts.load_polls import load_all_polls
+            pcol = get_db()["polls"]
+            prev_n = pcol.count_documents({})
+            prev_max = (pcol.find_one(sort=[("date", -1)]) or {}).get("date")
+            poll_info = load_all_polls()
+            polls_changed = (poll_info["rows"] != prev_n
+                             or poll_info["max_date"] != prev_max)
+            if polls_changed:
+                model_relevant = True
+        except Exception as exc:  # noqa: BLE001
+            errors.append({"path": "polls", "error": str(exc)[:160]})
+
     rerun_info = None
     if model_relevant and rerun:
         from consenso.pipeline.orchestrate import run_model
-        rerun_info = run_model(include_regional=True)
+        rerun_info = run_model(include_regional=True, include_polls=polls)
 
     status = {"_id": "last", "ts": _utcnow(), "new": new, "n_new": len(new),
-              "skipped": len(skipped), "errors": errors, "rerun": rerun_info}
+              "skipped": len(skipped), "errors": errors, "rerun": rerun_info,
+              "polls": poll_info, "polls_changed": polls_changed}
     get_db()[SYNC_STATUS].replace_one({"_id": "last"}, status, upsert=True)
     audit("autosync", "sync", {"n_new": len(new), "errors": len(errors)})
     return {"n_new": len(new), "new": new, "skipped": len(skipped),
-            "errors": errors, "rerun": rerun_info}
+            "errors": errors, "rerun": rerun_info,
+            "polls": poll_info, "polls_changed": polls_changed}
 
 
 def last_status() -> Dict:

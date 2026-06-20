@@ -34,10 +34,15 @@ def projected_shares(as_of: Optional[str] = None, run_id: Optional[str] = None):
     s = load_samples(run["_id"])
     states, rw = s["states"], s["rw_scale"]
     t0 = get_db()["elections"].find_one(sort=[("date", 1)])["date"]
-    last_nat = get_db()["elections"].find_one(
-        {"type": {"$in": ["politiche", "europee"]}}, sort=[("date", -1)])
-    anchor_m = _months_between(t0, last_nat["date"]) if last_nat else max(times)
-    anchor_idx = int(np.argmin([abs(t - anchor_m) for t in times]))
+    if hp.get("include_polls"):
+        # i sondaggi recenti tengono aggiornato lo stato: ancora all'ultimo punto
+        anchor_idx = len(times) - 1
+    else:
+        # senza sondaggi: ancora all'ultima elezione NAZIONALE (le regionali distorcono)
+        last_nat = get_db()["elections"].find_one(
+            {"type": {"$in": ["politiche", "europee"]}}, sort=[("date", -1)])
+        anchor_m = _months_between(t0, last_nat["date"]) if last_nat else max(times)
+        anchor_idx = int(np.argmin([abs(t - anchor_m) for t in times]))
     dt = max(_months_between(t0, as_of) - times[anchor_idx], 0.0)
     rng = np.random.default_rng(0)
     proj = states[:, anchor_idx, :] + rng.normal(size=states[:, anchor_idx, :].shape) * (

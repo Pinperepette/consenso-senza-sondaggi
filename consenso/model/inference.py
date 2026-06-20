@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import os
 import json
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
@@ -39,6 +40,30 @@ BASE_OBS_SD = {
     "regionali": 0.18,
     "comunali": 0.20,
 }
+
+# Errore di misura dei sondaggi sullo stato latente (log-ratio), calibrato
+# sull'errore reale misurato (~3,2 punti vs ~1,4 di margine campionario, cioe'
+# ~2,2x). I sondaggi entrano quindi come segnale DEBOLE/indicativo: i fatti
+# (le elezioni vere) restano le ancore forti.
+POLL_OBS_SD = float(os.environ.get("CONSENSO_POLL_SD", "0.15"))
+
+
+def _poll_buckets(up_to_date: Optional[str]) -> Dict[str, Dict[str, float]]:
+    """Aggrega i sondaggi a livello mensile: per ogni mese, la media di ogni
+    partito su tutte le rilevazioni. Restituisce {data: {party_id: quota}}."""
+    from collections import defaultdict
+
+    q: Dict = {}
+    if up_to_date:
+        q["date"] = {"$lte": up_to_date}
+    by: Dict[str, Dict[str, list]] = defaultdict(lambda: defaultdict(list))
+    for r in get_db()["polls"].find(q, {"date": 1, "party_id": 1, "share": 1}):
+        y, m = int(r["date"][:4]), int(r["date"][5:7])
+        midq = ((m - 1) // 3) * 3 + 2          # mese centrale del trimestre: 2,5,8,11
+        key = f"{y}-{midq:02d}-15"
+        by[key][r["party_id"]].append(r["share"])
+    return {k: {p: float(np.mean(v)) for p, v in parts.items()}
+            for k, parts in by.items()}
 
 # numero massimo di partiti modellati esplicitamente (gli altri confluiscono nel
 # riferimento "Altri")
@@ -125,7 +150,8 @@ def select_party_universe(election_ids: List[str], max_parties: int) -> List[str
 def assemble_model_data(election_ids: Optional[List[str]] = None,
                         up_to_date: Optional[str] = None,
                         max_parties: int = DEFAULT_MAX_PARTIES,
-                        include_regional: bool = True) -> ModelData:
+                        include_regional: bool = True,
+                        include_polls: bool = False) -> ModelData:
     q: Dict = {"type": {"$in": list(PARTY_ELECTION_TYPES)}}
     if election_ids:
         q["_id"] = {"$in": election_ids}
@@ -137,6 +163,13 @@ def assemble_model_data(election_ids: Optional[List[str]] = None,
 
     eids = [e["_id"] for e in elections]
     parties = select_party_universe(eids, max_parties)
+    if include_polls:
+        # partiti presenti SOLO nei sondaggi (es. Futuro Nazionale, mai votato):
+        # entrano nell'universo, mascherati in tutte le elezioni, stimati dai sondaggi.
+        pq = {"date": {"$lte": up_to_date}} if up_to_date else {}
+        for pp in get_db()["polls"].distinct("party_id", pq):
+            if pp not in parties:
+                parties.insert(-1, pp)   # prima del riferimento (ultimo)
     ref_idx = parties.index(CONFIG.model.reference_party)
     K = len(parties)
     pidx = {p: i for i, p in enumerate(parties)}
@@ -146,8 +179,10 @@ def assemble_model_data(election_ids: Optional[List[str]] = None,
     anchor_type_idx = type_idx[ANCHOR_ELECTION_TYPE]
 
     t0 = elections[0]["date"]
-    # tempi unici
-    date_list = sorted({e["date"] for e in elections})
+    poll_buckets = ({d: s for d, s in _poll_buckets(up_to_date).items() if d >= t0}
+                    if include_polls else {})
+    # tempi unici (elezioni + eventuali mesi-sondaggio)
+    date_list = sorted({e["date"] for e in elections} | set(poll_buckets))
     times = np.array([_months_between(t0, d) for d in date_list])
     time_idx_of_date = {d: i for i, d in enumerate(date_list)}
 
@@ -196,6 +231,22 @@ def assemble_model_data(election_ids: Optional[List[str]] = None,
         obs_turnout_dev.append(_turnout_dev(eid, etype))
         obs_sd.append(sd)
 
+    def add_poll_obs(pdate, pshares):
+        """Osservazione-sondaggio: scala politiche (beta=0), nazionale, varianza
+        grande (segnale indicativo). I partiti non rilevati confluiscono in Altri."""
+        shares = np.zeros(K); present = np.zeros(K, dtype=bool); acc = 0.0
+        for pid, sh in pshares.items():
+            if pid in pidx and pid != CONFIG.model.reference_party:
+                shares[pidx[pid]] += sh; present[pidx[pid]] = sh > 1e-6; acc += sh
+        shares[ref_idx] = max(1.0 - acc, 1e-6); present[ref_idx] = True
+        obs_eta.append(alr_np(shares, ref_idx))
+        obs_mask.append(np.delete(present & (shares > 1e-6), ref_idx))
+        obs_time_idx.append(time_idx_of_date[pdate])
+        obs_type_idx.append(anchor_type_idx)
+        obs_geo_idx.append(0)
+        obs_turnout_dev.append(0.0)
+        obs_sd.append(POLL_OBS_SD)
+
     for e in elections:
         eid, etype, edate = e["_id"], e["type"], e["date"]
         lvl = _finest_level(eid)
@@ -230,6 +281,10 @@ def assemble_model_data(election_ids: Optional[List[str]] = None,
                 if rtot > 0:
                     add_obs(rvotes, rtot, etype, edate, region_slot(reg), sd * 1.3)
 
+    # sondaggi: segnale debole, scala politiche, nazionale (canale opzionale)
+    for pdate, pshares in poll_buckets.items():
+        add_poll_obs(pdate, pshares)
+
     data = ModelData(
         parties=parties, ref_idx=ref_idx, election_types=types,
         anchor_type_idx=anchor_type_idx, regions=regions, times=times,
@@ -237,6 +292,7 @@ def assemble_model_data(election_ids: Optional[List[str]] = None,
         obs_time_idx=np.asarray(obs_time_idx), obs_type_idx=np.asarray(obs_type_idx),
         obs_geo_idx=np.asarray(obs_geo_idx), obs_turnout_dev=np.asarray(obs_turnout_dev),
         obs_sd=np.asarray(obs_sd), rw_scale_prior=CONFIG.model.rw_scale_per_month,
+        include_polls=bool(poll_buckets),
     )
     return data
 
@@ -312,7 +368,8 @@ def run_inference(data: ModelData, seed: int = 0,
                         "reference_party": CONFIG.model.reference_party,
                         "parties": data.parties, "regions": data.regions,
                         "election_types": data.election_types,
-                        "times": data.times.tolist()},
+                        "times": data.times.tolist(),
+                        "include_polls": data.include_polls},
         "elections_used": [e for e in []],
         "inference": {"method": "NUTS", "draws": num_samples,
                       "chains": num_chains, "rhat_max": rhat_max},

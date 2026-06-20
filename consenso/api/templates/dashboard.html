@@ -255,14 +255,15 @@
 </main>
 
 <script>
-const COLORS={FDI:"#2f6fb3",PD:"#e2362d",M5S:"#f4c430",LEGA:"#2e8b57",FI:"#5aa9e6",AVS:"#7cba3f",ALTRI:"#7a8699"};
+const COLORS={FDI:"#2f6fb3",PD:"#e2362d",M5S:"#f4c430",LEGA:"#2e8b57",FI:"#5aa9e6",AVS:"#7cba3f",FN:"#a463f2",ALTRI:"#7a8699"};
 const NPCOLOR="#a463f2";
 const col=p=>{if(SCEN&&SCEN.newPartyName&&p===SCEN.newPartyName)return NPCOLOR;
   return COLORS[(p||"").replace("party:","")]||"#7a8699";};
-function mapParties(){return SCEN&&SCEN.newPartyName?MAP_PARTIES.concat([SCEN.newPartyName]):MAP_PARTIES;}
+function mapParties(){return SCEN&&SCEN.newPartyName?GEO_PARTIES.concat([SCEN.newPartyName]):GEO_PARTIES;}
 const pct=x=>(x*100).toFixed(1)+"%";
 const AREAN={NO:"Nord-Ovest",NE:"Nord-Est",C:"Centro",S:"Sud",I:"Isole"};
-const MAP_PARTIES=["FDI","PD","M5S","LEGA","FI","AVS"];
+let GEO_PARTIES=["FDI","PD","M5S","LEGA","FI","AVS"];   // partiti con dato territoriale (mappa/comunali)
+let ALL_PARTIES=["FDI","PD","M5S","LEGA","FI","AVS"];   // tutti i partiti del run (selettore/barre/trend), riempito da NC
 let SEL="VINCENTE", REGIONS={}, SUMMARY={}, NC=null, maps={}, layers={}, geojson=null;
 let cmap=null, cmarkers=null;
 let SCEN=null, SCEN_LAST=null;   // scenario applicato a tutta l'analisi / ultimo calcolato
@@ -372,11 +373,11 @@ function paint(id){
 /* ---------- trend ---------- */
 let CHART;
 async function loadTrend(){
-  const ps=MAP_PARTIES.map(p=>"party:"+p);
+  const ps=ALL_PARTIES.map(p=>"party:"+p);
   const series=await Promise.all(ps.map(p=>j(`/trend?party=${p}`)));
   const labels=[...new Set(series.flatMap(s=>s.series.map(x=>x.as_of)))].sort();
   const ds=series.map((s,i)=>{const m=Object.fromEntries(s.series.map(x=>[x.as_of,x.mean*100]));
-    return{label:MAP_PARTIES[i],data:labels.map(l=>m[l]??null),borderColor:col(ps[i]),
+    return{label:ALL_PARTIES[i],data:labels.map(l=>m[l]??null),borderColor:col(ps[i]),
       backgroundColor:col(ps[i]),spanGaps:true,tension:.3,pointRadius:3,borderWidth:2};});
   if(CHART)CHART.destroy();
   CHART=new Chart(document.getElementById("trend"),{type:"line",data:{labels,datasets:ds},
@@ -627,7 +628,9 @@ window.addEventListener("resize",()=>{clearTimeout(_rsz);_rsz=setTimeout(()=>{
 
 /* ---------- auto-sync ---------- */
 function fmtSync(s){const when=s.ts?new Date(s.ts).toLocaleString("it-IT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"mai";
-  return `sync: ${when}`+(s.n_new?` · +${s.n_new} nuove`:"");}
+  let t=`sync: ${when}`+(s.n_new?` · +${s.n_new} nuove`:"");
+  if(s.polls&&s.polls.max_date) t+=` · ${s.polls.polls||s.polls.rows} sondaggi (al ${s.polls.max_date})`+(s.polls_changed?" ↻":"");
+  return t;}
 async function loadSyncStatus(){
   const s=await j("/sync/status");const b=document.getElementById("syncbadge");
   if(s.running){b.textContent="sync in corso…";document.getElementById("syncbtn").disabled=true;setTimeout(loadSyncStatus,5000);return;}
@@ -643,15 +646,11 @@ async function pollSync(){
   if(s.running){document.getElementById("syncbadge").textContent="sync in corso…";setTimeout(pollSync,5000);return;}
   document.getElementById("syncbtn").disabled=false;
   document.getElementById("syncbadge").textContent=fmtSync(s);
-  if(s.n_new){ (await j("/regions")).forEach?.(r=>REGIONS[r.region]=r);
+  if(s.n_new || s.polls_changed){ (await j("/regions")).forEach?.(r=>REGIONS[r.region]=r);
     await loadNowcast(); await loadTrend(); paint("map"); paint("minimap"); renderPartyRegions(); }
 }
 
 async function init(){
-  const sel=document.getElementById("party");
-  [["VINCENTE","🏆 Vincente"],["FDI","FdI"],["PD","PD"],["M5S","M5S"],["LEGA","Lega"],["FI","FI"],["AVS","AVS"]]
-    .forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;sel.appendChild(o);});
-  sel.value=SEL; sel.onchange=()=>selectParty(sel.value);
   document.getElementById("go").onclick=()=>loadNowcast(document.getElementById("asof").value);
   document.getElementById("syncbtn").onclick=startSync;
   loadSyncStatus();
@@ -667,13 +666,24 @@ async function init(){
     `· run ${r.run_id} (${r.status}, R-hat ${r.inference?.rhat_max?.toFixed?.(3)||'n/d'})`;}
   (await j("/regions")).forEach?.(r=>REGIONS[r.region]=r);
   SUMMARY=await j("/static/spatial_summary.json");
+  await loadNowcast();                                   // popola NC
+  // liste partiti DINAMICHE dai dati del run (un partito nuovo, es. FN, entra da solo)
+  ALL_PARTIES=(NC.parties||[]).filter(p=>p.name!=="ALTRI").map(p=>p.name);
+  const geoSet=new Set(Object.values(REGIONS).flatMap(r=>Object.keys(r.parties||{})));
+  GEO_PARTIES=ALL_PARTIES.filter(p=>geoSet.has("party:"+p));
+  if(!GEO_PARTIES.length) GEO_PARTIES=["FDI","PD","M5S","LEGA","FI","AVS"];
+  // selettore: Vincente + tutti i partiti del run (compresi i nuovi)
+  const sel=document.getElementById("party"); sel.innerHTML="";
+  const addopt=(v,t)=>{const o=document.createElement("option");o.value=v;o.textContent=t;sel.appendChild(o);};
+  addopt("VINCENTE","🏆 Vincente"); ALL_PARTIES.forEach(p=>addopt(p,p));
+  sel.value=SEL; sel.onchange=()=>selectParty(sel.value);
+  // comunali: solo partiti con dato territoriale
   const ce=document.getElementById("comelect");
   (await j("/comunali/elections")).forEach(e=>{const o=document.createElement("option");
     o.value=e.id;o.textContent=`${e.date} · ${e.n_comuni} comuni`;ce.appendChild(o);});
   const cp=document.getElementById("comparty");
-  MAP_PARTIES.forEach(p=>{const o=document.createElement("option");o.value="party:"+p;o.textContent=p;cp.appendChild(o);});
+  GEO_PARTIES.forEach(p=>{const o=document.createElement("option");o.value="party:"+p;o.textContent=p;cp.appendChild(o);});
   ce.onchange=loadComunali; cp.onchange=loadComunali;
-  await loadNowcast();
   await ensureMap("minimap");
   await loadTrend(); await loadFlows(); renderIdentikit(); renderPartyRegions();
 }

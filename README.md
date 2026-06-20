@@ -14,7 +14,7 @@
 - **Maps** the vote geographically (winner per region, choropleth per party, municipal‑level breakouts).
 - **Explains the drivers** with a spatial machine‑learning model (geography vs income vs occupation).
 - **Runs "what‑if" scenarios**: an LLM reads news articles and turns them into *explicit, sourced assumptions*; the model computes the consequences, with the scenario applicable to the whole analysis and comparable side by side.
-- **Self‑updates**: an auto‑sync job pulls newly published elections from the Ministry archive and re‑runs the model.
+- **Self‑updates**: an auto‑sync job pulls newly published elections from the Ministry archive **and the latest opinion polls (live from Wikipedia)**, then re‑runs the model. New parties (e.g. a poll‑only newcomer) are picked up automatically, in the model and in the UI.
 
 ## Screenshots
 
@@ -49,7 +49,7 @@
 
 - **Ministero dell'Interno / Eligendo** — election results down to municipality (general, European, regional, municipal), turnout. Downloaded straight from the open‑data archive.
 - **ISTAT** — territorial codes, geographic boundaries, municipal income (MEF series).
-- No polls enter the main estimate (a separate, optional, clearly‑labelled module can ingest them — off by default).
+- **Opinion polls** are an optional, clearly‑labelled channel (off in the core reconstruction and in the backtest). When enabled, they enter as a *weak, indicative* signal with variance inflated to the **real, measured poll error** (~3.2 pts, about 2.2× the nominal sampling margin), so the facts (elections) stay the anchors. Historical series back to 2008 plus live updates from Wikipedia; auto‑sync uses them to estimate the **present** — the inter‑election gap the model otherwise cannot fill — while a poll‑only party (e.g. a new entrant) is tracked separately and masked in every election.
 
 A correctness check: recomputing national turnout by summing all ~7,800 municipalities gives **64.0%** (2022 general) and **49.7%** (2024 European), identical to the official figures.
 

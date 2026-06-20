@@ -49,9 +49,10 @@ def _actual_shares(election_id: str, parties: List[str], ref_idx: int) -> Option
 
 
 def run_backtest(train_until: str, num_warmup: Optional[int] = None,
-                 num_samples: Optional[int] = None) -> Dict:
+                 num_samples: Optional[int] = None, include_polls: bool = False) -> Dict:
     # 1) addestra solo sul passato
     res = run_model(up_to_date=train_until, include_regional=False,
+                    include_polls=include_polls,
                     num_warmup=num_warmup, num_samples=num_samples)
     run_id = res["run_id"]
     run = get_db()["model_runs"].find_one({"_id": run_id})
