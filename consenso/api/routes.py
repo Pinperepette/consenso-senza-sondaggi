@@ -356,6 +356,22 @@ def remove_feed():
     return jsonify({"feeds": feeds_list()})
 
 
+@api.get("/coalitions")
+def coalitions():
+    """Quote delle coalizioni (somma membri) con IC95 propagato."""
+    from consenso.model.coalitions import coalition_shares
+    res = coalition_shares(request.args.get("as_of"))
+    return jsonify(res), (404 if "error" in res else 200)
+
+
+@api.get("/seats")
+def seats():
+    """Proiezione semplificata dei seggi (Camera) con IC95 propagato."""
+    from consenso.model.coalitions import seat_projection
+    res = seat_projection(request.args.get("as_of"))
+    return jsonify(res), (404 if "error" in res else 200)
+
+
 @api.get("/dimensions")
 def dimensions():
     """Spazio dimensionale dei partiti: vettori 20D, mappa 2D (PCA), cluster,

@@ -121,6 +121,7 @@
   <button data-tab="comunali">🏛️ Comunali</button>
   <button data-tab="scenari">🧪 Scenari AI</button>
   <button data-tab="dimensioni">🧭 Dimensioni</button>
+  <button data-tab="seggi">🏛️ Seggi</button>
   <button data-tab="confronto">⚖️ Confronto</button>
 </nav>
 <div id="scenbanner" style="display:none;background:#231a10;border-bottom:1px solid #4a3a1a;
@@ -272,6 +273,23 @@
     <div class="note" style="margin-top:14px">⚠️ Questo è il <b>posizionamento</b> (cosa rappresentano i partiti), un layer separato dal consenso. I punteggi sono stimati dall'AI dai programmi/linea pubblica, non sono voti.</div>
   </section>
 
+  <section class="tab" id="tab-seggi">
+    <div class="grid g2">
+      <div class="card">
+        <h3>Coalizioni <span class="muted">(somma dei partiti)</span></h3>
+        <div class="hint">quota di ogni blocco con intervallo 95% e probabilità di arrivare primo. Le alleanze sono ipotesi (il "Campo largo" non è un fatto).</div>
+        <div id="coal-list"></div>
+      </div>
+      <div class="card">
+        <h3>Proiezione seggi — Camera (400)</h3>
+        <div class="hint">maggioranza a 201. <b>Stima semplificata</b> del Rosatellum (no collegi reali): ordine di grandezza, non un conteggio.</div>
+        <div id="seats-coal"></div>
+        <div id="seats-party" style="margin-top:12px"></div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:14px">⚠️ I seggi sono una <b>stima semplificata</b> (quota proporzionale + uninominali approssimati). Servono a capire "chi potrebbe governare", non a contare i deputati.</div>
+  </section>
+
   <section class="tab" id="tab-confronto">
     <div class="grid g2">
       <div class="card">
@@ -330,7 +348,35 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==="comunali"){ensureCmap().then(()=>{setTimeout(()=>cmap&&cmap.invalidateSize(),60);loadComunali();});}
   if(b.dataset.tab==="confronto"){loadSavedList();}
   if(b.dataset.tab==="dimensioni"){loadDimensioni();}
+  if(b.dataset.tab==="seggi"){loadSeggi();}
 });
+
+/* ---------- coalizioni & seggi ---------- */
+async function loadSeggi(){
+  const [c,s]=await Promise.all([j("/coalitions").catch(()=>({})),j("/seats").catch(()=>({}))]);
+  const ccol=n=>n==="Centrodestra"?"#2f6fb3":(n==="Campo largo"?"#e2362d":"#7a8699");
+  const bar=(label,mean,lo,hi,maxv,extra)=>`<div class="row" style="align-items:center;gap:8px;margin:4px 0">
+    <div style="width:110px;font-size:13px">${label}</div>
+    <div style="flex:1;background:#0c1016;border-radius:6px;height:18px;position:relative">
+      <div style="position:absolute;left:0;top:0;height:18px;border-radius:6px;width:${Math.min(100,mean/maxv*100)}%;background:${ccol(label)}99"></div></div>
+    <div style="width:120px;text-align:right;font-size:12px"><b>${mean}</b> <span class="muted">[${lo}-${hi}]</span> ${extra||""}</div></div>`;
+  // coalizioni (quote %)
+  const cl=document.getElementById("coal-list");
+  if(c.coalitions){const mx=Math.max(...c.coalitions.map(x=>x.ci95[1]*100));
+    cl.innerHTML=c.coalitions.map(x=>bar(x.name,(x.mean*100).toFixed(1)+"%",(x.ci95[0]*100).toFixed(0),(x.ci95[1]*100).toFixed(0),mx,
+      `<span class="muted">1°:${Math.round((x.p_first||0)*100)}%</span>`)).join("")
+      +c.coalitions.map(x=>`<div class="muted" style="font-size:11px;margin-left:110px">${x.name}: ${x.members.join(", ")}</div>`).join("");}
+  // seggi coalizioni
+  const sc=document.getElementById("seats-coal");
+  if(s.coalitions){const mx=s.majority*1.3;
+    sc.innerHTML=`<div class="muted" style="font-size:12px;margin-bottom:4px">maggioranza a ${s.majority}</div>`+
+      s.coalitions.map(x=>bar(x.name,Math.round(x.mean),x.ci95[0],x.ci95[1],mx,
+      `<span class="muted">magg:${Math.round((x.p_majority||0)*100)}%</span>`)).join("");}
+  // seggi partiti
+  const sp=document.getElementById("seats-party");
+  if(s.parties){sp.innerHTML="<div class='muted' style='font-size:12px;margin-bottom:4px'>per partito</div>"+
+    s.parties.map(x=>`<div class="row" style="gap:8px;font-size:13px;margin:2px 0"><div class="pname" style="width:60px;color:${col('party:'+x.party)}">${x.party}</div><b>${Math.round(x.mean)}</b> <span class="muted">[${x.ci95[0]}-${x.ci95[1]}]</span></div>`).join("");}
+}
 
 /* ---------- dimensioni (spazio ideologico) ---------- */
 let DIM=null, DIMMAP=null, DIMRADAR=null;
