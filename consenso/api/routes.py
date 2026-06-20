@@ -325,6 +325,66 @@ def scenario_ai():
     return jsonify(res)
 
 
+@api.get("/scenario/feeds")
+def list_feeds():
+    """Elenca i feed RSS configurati."""
+    from consenso.ai.news import feeds_list
+    return jsonify({"feeds": feeds_list()})
+
+
+@api.post("/scenario/feeds")
+def add_feed():
+    """Aggiunge (o riattiva) un feed RSS."""
+    body = request.get_json(force=True, silent=True) or {}
+    url = (body.get("url") or "").strip()
+    if not url.startswith("http"):
+        return jsonify({"error": "URL non valido"}), 400
+    source = (body.get("source") or url.split("/")[2]).strip()
+    get_db()["feeds"].update_one(
+        {"url": url}, {"$set": {"url": url, "source": source, "enabled": True}},
+        upsert=True)
+    from consenso.ai.news import feeds_list
+    return jsonify({"feeds": feeds_list()})
+
+
+@api.post("/scenario/feeds/remove")
+def remove_feed():
+    """Rimuove un feed RSS."""
+    body = request.get_json(force=True, silent=True) or {}
+    get_db()["feeds"].delete_one({"url": (body.get("url") or "").strip()})
+    from consenso.ai.news import feeds_list
+    return jsonify({"feeds": feeds_list()})
+
+
+@api.get("/scenario/news")
+def scenario_news():
+    """Ultimi titoli di politica dai feed RSS (anteprima)."""
+    from consenso.ai.news import fetch_political_news
+    try:
+        return jsonify({"news": fetch_political_news(25)})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": str(exc)}), 502
+
+
+@api.post("/scenario/ai/auto")
+def scenario_ai_auto():
+    """Agente: legge i feed RSS, sceglie le notizie rilevanti e genera lo scenario."""
+    body = request.get_json(force=True, silent=True) or {}
+    as_of = body.get("as_of")
+    from consenso.ai.scenario_ai import generate_spec_from_news
+    try:
+        gen = generate_spec_from_news(as_of)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": f"AI non disponibile: {exc}"}), 502
+    if "error" in gen:
+        return jsonify(gen), 404
+    from consenso.model.scenario import run_scenario
+    res = run_scenario(gen["spec"], as_of)
+    res["spec"] = gen["spec"]
+    res["news_used"] = gen.get("news_used", [])
+    return jsonify(res)
+
+
 @api.post("/scenario/apply")
 def scenario_apply():
     body = request.get_json(force=True, silent=True) or {}

@@ -48,6 +48,47 @@ oppure new_party:
 """
 
 
+TRIAGE_SYSTEM = """Sei un analista politico italiano. Ti do un elenco numerato di
+titoli di cronaca politica recente. Seleziona SOLO quelli che potrebbero
+realisticamente spostare il consenso dei partiti: scandali/inchieste, alleanze e
+rotture, leggi divisive, cambi di leadership, nascita di nuovi partiti, exit/risultati.
+Scarta cronaca neutra, di colore, o estera irrilevante per il voto italiano.
+
+Rispondi SOLO con JSON: {"selected":[{"i":<indice>,"why":"motivo breve"}]}.
+Massimo 8 voci, ordinate per impatto potenziale. Se nulla e' rilevante, lista vuota."""
+
+
+def generate_spec_from_news(as_of: Optional[str] = None,
+                            max_items: int = 25) -> Dict:
+    """Agente: legge i feed RSS, fa triage delle notizie rilevanti, poi genera lo
+    scenario spec dalle sole notizie selezionate. Restituisce anche news_used."""
+    from consenso.ai.news import fetch_political_news
+
+    news = fetch_political_news(max_items)
+    if not news:
+        return {"error": "nessuna notizia dai feed RSS"}
+    listing = "\n".join(
+        f"[{i}] ({n['source']}) {n['title']} — {n['summary'][:160]}"
+        for i, n in enumerate(news))
+    try:
+        sel = chat_json(TRIAGE_SYSTEM, "TITOLI:\n" + listing)
+    except Exception:  # noqa: BLE001
+        sel = {}
+    idxs = [s["i"] for s in sel.get("selected", [])
+            if isinstance(s.get("i"), int) and 0 <= s["i"] < len(news)]
+    why = {s["i"]: s.get("why", "") for s in sel.get("selected", [])
+           if isinstance(s.get("i"), int)}
+    chosen = []
+    for i in (idxs or list(range(min(5, len(news))))):
+        item = dict(news[i]); item["why"] = why.get(i, ""); chosen.append(item)
+    articles = "\n\n".join(f"({n['source']}) {n['title']}. {n['summary']}"
+                           for n in chosen)
+    gen = generate_spec(articles, as_of)
+    if "error" not in gen:
+        gen["news_used"] = chosen
+    return gen
+
+
 def generate_spec(articles: str, as_of: Optional[str] = None) -> Dict:
     parties, base, meta = projected_shares(as_of)
     if parties is None:

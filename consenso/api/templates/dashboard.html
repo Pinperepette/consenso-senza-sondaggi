@@ -224,11 +224,23 @@
           style="width:100%;height:200px;background:#0c1016;color:var(--fg);border:1px solid var(--line);
           border-radius:10px;padding:10px;font-size:13px;resize:vertical"></textarea>
         <div style="display:flex;gap:10px;margin-top:10px;align-items:center">
-          <button id="scen-gen">✨ Genera scenario (AI)</button>
+          <button id="scen-gen">✨ Genera da testo</button>
+          <button id="scen-news" style="background:#2a2140;color:#c9b6f5;border:1px solid #4a3a72">📰 Genera da notizie (RSS)</button>
           <button id="scen-apply-all" style="background:#15281c;color:#7ee29a;border:1px solid #1f5132" disabled>➜ Applica a tutta l'analisi</button>
           <button id="scen-save" style="background:#1d3346;color:#fff" disabled>💾 Salva</button>
           <span class="badge" id="scen-status">—</span>
         </div>
+        <details id="feeds-box" style="margin-top:10px">
+          <summary class="hint" style="cursor:pointer">📡 Feed RSS — qui decidi dove l'AI legge le notizie</summary>
+          <div id="feeds-list" style="margin-top:8px"></div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <input id="feed-url" placeholder="https://…/rss.xml"
+              style="flex:1;background:#0c1016;color:#fff;border:1px solid var(--line);border-radius:6px;padding:6px;font-size:12px">
+            <input id="feed-src" placeholder="nome (opz.)"
+              style="width:110px;background:#0c1016;color:#fff;border:1px solid var(--line);border-radius:6px;padding:6px;font-size:12px">
+            <button id="feed-add" style="background:#1d3346;color:#fff">+ aggiungi</button>
+          </div>
+        </details>
         <div id="scen-summary" class="hint" style="margin-top:12px"></div>
         <div id="scen-assumptions"></div>
       </div>
@@ -508,6 +520,50 @@ async function genScenario(){
     renderAssumptions();renderScenario(res);
   }catch(e){document.getElementById("scen-gen").disabled=false;st.textContent="errore di rete";}
 }
+async function loadFeeds(){
+  const r=await j("/scenario/feeds").catch(()=>({feeds:[]}));renderFeeds(r.feeds||[]);
+}
+function renderFeeds(feeds){
+  const el=document.getElementById("feeds-list");if(!el)return;
+  el.innerHTML=feeds.map(f=>`<span class="house-chip" style="margin:0 4px 4px 0">${f.source}
+    <span class="muted" style="font-size:10px">${f.url.replace(/^https?:\/\//,'').slice(0,28)}…</span>
+    <b class="up" style="cursor:pointer" data-url="${encodeURIComponent(f.url)}">✕</b></span>`).join("")
+    ||"<span class='muted'>nessun feed</span>";
+  el.querySelectorAll("b[data-url]").forEach(b=>b.onclick=()=>removeFeed(decodeURIComponent(b.dataset.url)));
+}
+async function addFeed(){
+  const url=document.getElementById("feed-url").value.trim();if(!url)return;
+  const source=document.getElementById("feed-src").value.trim();
+  const r=await fetch("/scenario/feeds",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({url,source})}).then(r=>r.json());
+  if(r.error){alert(r.error);return;}
+  document.getElementById("feed-url").value="";document.getElementById("feed-src").value="";
+  renderFeeds(r.feeds||[]);
+}
+async function removeFeed(url){
+  const r=await fetch("/scenario/feeds/remove",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({url})}).then(r=>r.json());renderFeeds(r.feeds||[]);
+}
+async function genFromNews(){
+  const st=document.getElementById("scen-status");
+  st.textContent="📰 leggo i feed e seleziono le notizie…";
+  document.getElementById("scen-news").disabled=true;document.getElementById("scen-gen").disabled=true;
+  try{
+    const res=await fetch("/scenario/ai/auto",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({as_of:NC?NC.as_of:null})}).then(r=>r.json());
+    document.getElementById("scen-news").disabled=false;document.getElementById("scen-gen").disabled=false;
+    if(res.error){st.textContent="⚠️ "+res.error;return;}
+    st.textContent="✓ scenario dalle notizie";SPEC=res.spec;
+    const nu=res.news_used||[];
+    // mostra le notizie scelte dall'agente (trasparenza) e riempie il testo letto
+    document.getElementById("scen-art").value=nu.map(n=>`(${n.source}) ${n.title}. ${n.summary}`).join("\n\n");
+    let head="<b>Sintesi AI:</b> "+(res.spec.summary||"—");
+    if(nu.length){head+="<div class='muted' style='margin-top:8px;font-size:12px'>📰 Notizie usate dall'agente:</div>"
+      +nu.map(n=>`<div style='font-size:12px;margin-top:3px'>• <b>${n.title}</b> <span class='muted'>(${n.source})</span>${n.why?` — <i>${n.why}</i>`:''}</div>`).join("");}
+    document.getElementById("scen-summary").innerHTML=head;
+    renderAssumptions();renderScenario(res);
+  }catch(e){document.getElementById("scen-news").disabled=false;document.getElementById("scen-gen").disabled=false;st.textContent="errore di rete";}
+}
 function renderAssumptions(){
   const el=document.getElementById("scen-assumptions");if(!SPEC){el.innerHTML="";return;}
   let h="<div class='muted' style='margin:14px 0 6px;font-size:12px'>Assunzioni (modificabili, in punti %):</div>";
@@ -688,6 +744,8 @@ async function init(){
   document.getElementById("syncbtn").onclick=startSync;
   loadSyncStatus();
   document.getElementById("scen-gen").onclick=genScenario;
+  document.getElementById("scen-news").onclick=genFromNews;
+  document.getElementById("feed-add").onclick=addFeed; loadFeeds();
   document.getElementById("scen-apply-all").onclick=applyScenarioGlobal;
   document.getElementById("scen-remove").onclick=removeScenario;
   document.getElementById("scen-save").onclick=saveScenario;
