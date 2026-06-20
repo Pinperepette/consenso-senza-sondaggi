@@ -46,8 +46,11 @@ def calibrate(cutoffs=("2017-12-31", "2021-12-31", "2023-12-31"),
 
     trained = []
     for c in cutoffs:
-        rid = run_model(up_to_date=c, include_regional=False, include_polls=True,
-                        trend=True, num_warmup=num_warmup, num_samples=num_samples)["run_id"]
+        try:
+            rid = run_model(up_to_date=c, include_regional=False, include_polls=True,
+                            trend=True, num_warmup=num_warmup, num_samples=num_samples)["run_id"]
+        except Exception:  # noqa: BLE001 - cutoff senza storia sufficiente: salta
+            continue
         hp = get_db()["model_runs"].find_one({"_id": rid})["hyperparams"]
         parties, times = hp["parties"], hp["times"]
         ref = parties.index(CONFIG.model.reference_party)
@@ -68,6 +71,11 @@ def calibrate(cutoffs=("2017-12-31", "2021-12-31", "2023-12-31"),
         trained.append({"parties": parties, "ref": ref, "last": last, "lastv": lastv,
                         "beta": s["beta"][:, tix[nxt["type"]], :], "innov": innov,
                         "actual": actual, "dt": dt, "gov": governing_parties(c), "cutoff": c})
+
+    if not trained:                      # storia insufficiente: tieni i default
+        return {"trend_damping": DEFAULTS["trend_damping"],
+                "gov_cost": DEFAULTS["gov_cost"], "crps": None, "grid": [],
+                "note": "storia insufficiente per calibrare, uso i default"}
 
     def crps_for(phi, kappa):
         vals = []
