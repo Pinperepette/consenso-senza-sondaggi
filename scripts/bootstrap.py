@@ -30,7 +30,8 @@ def main() -> int:
     sh("scripts/init_db.py")
     sh("scripts/load_opendata.py")                 # politiche 2022 + europee 2024
     sh("scripts/load_regionali_2025.py", optional=True)
-    sh("scripts/load_comunali_catalogo.py", optional=True)   # scheda Comunali
+    sh("scripts/load_comunali_catalogo.py", optional=True)   # scheda Comunali (recenti)
+    sh("scripts/load_comunali_storico.py", optional=True)    # comunali storiche 2010-2022
     sh("scripts/load_parliament_votes.py", optional=True)    # voti reali Camera (fatti vs parole)
     sh("scripts/load_polls.py")                    # sondaggi storici + live
     # fondamentali: economia (World Bank) per il costo del governare
