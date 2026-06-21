@@ -480,15 +480,30 @@ def timeline():
             elec.append({"date": e["date"], "type": e["type"], "value": round(100 * v / tot, 1)})
     # eventi curati
     fx = Path(__file__).resolve().parent.parent.parent / "data" / "fixtures" / "political_events.json"
-    events = []
+    events, seen = [], set()
     if fx.exists():
-        allev = _json.loads(fx.read_text(encoding="utf-8")).get(party, [])
-        for ev in allev:
-            events.append({**ev, "consensus": consensus_at(ev["date"])})
+        for ev in _json.loads(fx.read_text(encoding="utf-8")).get(party, []):
+            seen.add((ev["date"], ev["title"]))
+            events.append({**ev, "origin": "curato", "consensus": consensus_at(ev["date"])})
+    # eventi scoperti dall'AI (da verificare), esclusi i duplicati dei curati
+    for ev in db["events_auto"].find({"party": party}, {"_id": 0}):
+        if (ev.get("date"), ev.get("title")) in seen:
+            continue
+        events.append({**ev, "consensus": consensus_at(ev["date"])})
+    events.sort(key=lambda e: e.get("date") or "")
     return jsonify({"party": party, "series": series, "elections": elec,
                     "events": events,
                     "parties_available": [k for k in (_json.loads(fx.read_text(encoding="utf-8")).keys()
                     if fx.exists() else []) if not k.startswith("_")]})
+
+
+@api.post("/timeline/discover")
+def timeline_discover():
+    """Scopre automaticamente eventi datati per un partito (AI su Wikipedia), da verificare."""
+    b = request.get_json(force=True, silent=True) or {}
+    from consenso.ai.events import discover_party
+    r = discover_party((b.get("party") or "LEGA").replace("party:", ""))
+    return jsonify(r), (502 if "error" in r else 200)
 
 
 @api.get("/data/poll_trend")

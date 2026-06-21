@@ -68,6 +68,7 @@ def main() -> int:
             print(">> dimensioni: saltate (nessuna chiave AI)", flush=True)
     except Exception as exc:  # noqa: BLE001
         print(f"(dimensioni saltate: {exc})", flush=True)
+    sh("scripts/discover_events.py", optional=True)         # eventi 'Fatti e consenso' (AI, da verificare)
     # corroborazione regionale (scheda Previsioni): popola la cache regional_2020
     try:
         from consenso.model.corroboration import regional_corroboration

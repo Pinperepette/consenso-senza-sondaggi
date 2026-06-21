@@ -5,6 +5,7 @@
     {"date": "2019-05-26", "kind": "picco", "title": "Europee 2019: 34,3%", "note": "Massimo storico della Lega di Salvini.", "source": "https://it.wikipedia.org/wiki/Elezioni_europee_del_2019_in_Italia"},
     {"date": "2019-08-08", "kind": "dietrofront", "title": "Crisi del Papeete: fa cadere il governo", "note": "Salvini ritira la fiducia a Conte puntando al voto; la mossa fallisce.", "source": "https://it.wikipedia.org/wiki/Governo_Conte_I"},
     {"date": "2019-09-05", "kind": "alleanza", "title": "Nasce il Conte II (M5S-PD): Lega all'opposizione", "note": "Esclusa dal governo dopo la crisi d'agosto.", "source": "https://it.wikipedia.org/wiki/Governo_Conte_II"},
+    {"date": "2020-01-01", "kind": "dietrofront", "title": "Archiviata la linea anti-euro", "note": "La proposta di uscita dall'euro/'piano B', centrale nel 2014-2018, viene di fatto abbandonata.", "source": "https://it.wikipedia.org/wiki/Lega_(partito_politico_2020)"},
     {"date": "2021-02-13", "kind": "dietrofront", "title": "Entra nel governo Draghi", "note": "Dopo anni di linea anti-establishment, la Lega sostiene il governo dell'ex-BCE Draghi, con PD, M5S e FI.", "source": "https://it.wikipedia.org/wiki/Governo_Draghi"},
     {"date": "2021-07-22", "kind": "dietrofront", "title": "Green pass: critiche a parole, governo che lo vara", "note": "Salvini contesta le misure (\"no obblighi\"), ma la Lega resta nella maggioranza che approva i decreti sul certificato verde.", "source": "https://it.wikipedia.org/wiki/Certificazione_verde_COVID-19"},
     {"date": "2022-10-22", "kind": "alleanza", "title": "Governo Meloni: Lega partner minore di FdI", "note": "FdI diventa il primo partito del centrodestra e assorbe gran parte dell'elettorato di destra.", "source": "https://it.wikipedia.org/wiki/Governo_Meloni"},
@@ -15,5 +16,28 @@
     {"date": "2019-09-05", "kind": "alleanza", "title": "Alleanza col PD (Conte II)", "note": "Dopo aver governato con la Lega, vira verso il PD: svolta che spacca l'elettorato.", "source": "https://it.wikipedia.org/wiki/Governo_Conte_II"},
     {"date": "2021-02-13", "kind": "alleanza", "title": "Sostiene il governo Draghi", "note": "Il M5S nato contro l'establishment entra nella maggioranza Draghi; segue la scissione di Di Maio (2022).", "source": "https://it.wikipedia.org/wiki/Governo_Draghi"},
     {"date": "2022-09-25", "kind": "minimo", "title": "Politiche 2022: 15,4%", "note": "Meno della meta' del 2018, pur risalendo nel finale di campagna al Sud.", "source": "https://it.wikipedia.org/wiki/Elezioni_politiche_del_2022_in_Italia"}
+  ],
+  "FDI": [
+    {"date": "2018-03-04", "kind": "minimo", "title": "Politiche 2018: 4,4%", "note": "Partito piccolo nel centrodestra, dietro Lega e FI.", "source": "https://it.wikipedia.org/wiki/Elezioni_politiche_del_2018_in_Italia"},
+    {"date": "2021-02-13", "kind": "alleanza", "title": "Unica all'opposizione di Draghi", "note": "Mentre Lega, M5S, PD e FI sostengono Draghi, FdI resta sola all'opposizione: incassa il voto di protesta.", "source": "https://it.wikipedia.org/wiki/Governo_Draghi"},
+    {"date": "2022-09-25", "kind": "picco", "title": "Politiche 2022: 26% (primo partito)", "note": "Dal 4% al 26% in una legislatura: l'opposizione a Draghi premia.", "source": "https://it.wikipedia.org/wiki/Elezioni_politiche_del_2022_in_Italia"},
+    {"date": "2022-10-22", "kind": "alleanza", "title": "Meloni presidente del Consiglio", "note": "FdI guida il governo; da qui la sfida e' reggere il consenso da forza di governo.", "source": "https://it.wikipedia.org/wiki/Governo_Meloni"}
+  ],
+  "FI": [
+    {"date": "2018-03-04", "kind": "picco", "title": "Politiche 2018: 14%", "note": "Ancora davanti a FdI nel centrodestra.", "source": "https://it.wikipedia.org/wiki/Elezioni_politiche_del_2018_in_Italia"},
+    {"date": "2021-02-13", "kind": "alleanza", "title": "Nel governo Draghi", "note": "Forza Italia tra i sostenitori di Draghi, in continuita' col profilo europeista/moderato.", "source": "https://it.wikipedia.org/wiki/Governo_Draghi"},
+    {"date": "2023-06-12", "kind": "dietrofront", "title": "Morte di Berlusconi", "note": "Scompare il fondatore e leader: incognita sulla tenuta del partito, che invece regge.", "source": "https://it.wikipedia.org/wiki/Silvio_Berlusconi"},
+    {"date": "2024-06-09", "kind": "picco", "title": "Europee 2024: ~9,6%, sorpassa la Lega", "note": "Senza Berlusconi, FI supera comunque la Lega nel centrodestra.", "source": "https://it.wikipedia.org/wiki/Elezioni_europee_del_2024_in_Italia"}
+  ],
+  "PD": [
+    {"date": "2018-03-04", "kind": "minimo", "title": "Politiche 2018: 18,8%", "note": "Sconfitta dopo la stagione Renzi; segue le dimissioni da segretario.", "source": "https://it.wikipedia.org/wiki/Elezioni_politiche_del_2018_in_Italia"},
+    {"date": "2019-09-05", "kind": "alleanza", "title": "Torna al governo col M5S (Conte II)", "note": "Dall'opposizione al governo con l'avversario storico M5S.", "source": "https://it.wikipedia.org/wiki/Governo_Conte_II"},
+    {"date": "2021-02-13", "kind": "alleanza", "title": "Nel governo Draghi", "note": "Sostiene Draghi insieme a quasi tutti gli altri.", "source": "https://it.wikipedia.org/wiki/Governo_Draghi"},
+    {"date": "2023-02-26", "kind": "dietrofront", "title": "Elly Schlein segretaria", "note": "Svolta a sinistra dopo le primarie: nuovo posizionamento del partito.", "source": "https://it.wikipedia.org/wiki/Elly_Schlein"},
+    {"date": "2024-06-09", "kind": "picco", "title": "Europee 2024: ~24%, secondo partito", "note": "Recupero rispetto al 2022.", "source": "https://it.wikipedia.org/wiki/Elezioni_europee_del_2024_in_Italia"}
+  ],
+  "AVS": [
+    {"date": "2022-09-25", "kind": "alleanza", "title": "Nasce l'Alleanza Verdi e Sinistra", "note": "Cartello tra Sinistra Italiana ed Europa Verde alle politiche 2022.", "source": "https://it.wikipedia.org/wiki/Alleanza_Verdi_e_Sinistra"},
+    {"date": "2024-06-09", "kind": "picco", "title": "Europee 2024: ~6,8% (Salis e Lucano eletti)", "note": "Crescita trainata da candidature simbolo.", "source": "https://it.wikipedia.org/wiki/Elezioni_europee_del_2024_in_Italia"}
   ]
 }

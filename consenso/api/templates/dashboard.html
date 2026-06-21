@@ -397,7 +397,9 @@
     <div class="card">
       <h3>📉 Fatti e consenso <span class="muted">— ascesa e declino, evento per evento</span></h3>
       <div class="hint">Il consenso <b>reale</b> (sondaggi + risultati elettorali) annotato con i <b>fatti</b> datati: alleanze, giravolte, voti. Si vede <i>cosa</i> ha fatto il partito e <i>dov'era</i> il consenso in quel momento.</div>
-      <label class="ctrl" style="margin:8px 0;display:block">Partito <select id="tl-party"></select></label>
+      <div class="save-row" style="margin:8px 0">Partito <select id="tl-party"></select>
+        <button id="tl-discover" style="background:#2a2140;color:#c9b6f5;border:1px solid #4a3a72">🤖 Scopri eventi con AI</button>
+        <span class="badge" id="tl-status"></span></div>
       <div style="position:relative;height:280px"><canvas id="tl-chart"></canvas></div>
       <div id="tl-events" style="margin-top:14px"></div>
     </div>
@@ -564,10 +566,18 @@ async function loadTimeline(){
   const sel=document.getElementById("tl-party");
   const t0=await j("/timeline?party=LEGA").catch(()=>null);
   if(!sel.options.length&&t0){
-    (t0.parties_available||["LEGA"]).forEach(p=>{const o=document.createElement("option");o.value=p;o.textContent=p;sel.appendChild(o);});
+    ["LEGA","FDI","FI","PD","M5S","AVS"].forEach(p=>{const o=document.createElement("option");o.value=p;o.textContent=p;sel.appendChild(o);});
     sel.value="LEGA"; sel.onchange=()=>renderTimeline(sel.value);
+    document.getElementById("tl-discover").onclick=discoverEvents;
   }
   renderTimeline(sel.value||"LEGA");
+}
+async function discoverEvents(){
+  const p=document.getElementById("tl-party").value, st=document.getElementById("tl-status");
+  st.textContent="🤖 AI legge le fonti…";
+  const r=await fetch("/timeline/discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({party:p})}).then(r=>r.json()).catch(()=>({error:"rete"}));
+  st.textContent=r.error?("⚠️ "+r.error):`✓ ${r.found} eventi (da verificare)`;
+  if(!r.error)renderTimeline(p);
 }
 async function renderTimeline(party){
   const t=await j("/timeline?party="+party).catch(()=>null);
@@ -596,8 +606,9 @@ async function renderTimeline(party){
   // lista eventi
   document.getElementById("tl-events").innerHTML=t.events.map(e=>{
     const k=TL_KIND[e.kind]||"#aaa";
+    const ai=e.origin==="ai"?' <span class="badge" style="background:#2a2140;color:#c9b6f5">🤖 AI — da verificare</span>':'';
     return `<div style="border-left:3px solid ${k};padding:6px 0 6px 10px;margin:8px 0">
-      <div style="font-size:13px"><b>${e.date}</b> · <b style="color:${k}">${e.title}</b> ${e.consensus!=null?`<span class="muted">— consenso ~${e.consensus}%</span>`:''}</div>
+      <div style="font-size:13px"><b>${e.date}</b> · <b style="color:${k}">${e.title}</b> ${e.consensus!=null?`<span class="muted">— consenso ~${e.consensus}%</span>`:''}${ai}</div>
       <div style="font-size:12px;color:#aab;margin-top:2px">${e.note||''} ${e.source?`<a href="${e.source}" target="_blank" style="color:#5aa9e6">fonte</a>`:''}</div></div>`;}).join("");
 }
 
