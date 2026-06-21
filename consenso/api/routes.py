@@ -253,29 +253,36 @@ def comunali_map():
     if not (election and party):
         return jsonify({"error": "param 'election' e 'party' richiesti"}), 400
     coords = _comune_coords()
-    proj = {"geo_id": 1, "share": 1, "votes": 1, "election_id": 1}
-    if election == "all":
-        # per ogni comune, il risultato piu' RECENTE del partito su tutte le tornate
-        dates = {e["_id"]: e["date"] for e in
-                 get_db()["elections"].find({"type": "comunali"}, {"date": 1})}
-        best = {}
-        for r in get_db()[PARTY_RESULTS].find(
-                {"election_id": {"$in": list(dates)}, "party_id": party,
-                 "share": {"$gt": 0}}, proj):
-            d = dates.get(r["election_id"], "")
-            if r["geo_id"] not in best or d > best[r["geo_id"]][0]:
-                best[r["geo_id"]] = (d, r)
-        rows = [r for _, r in best.values()]
-    else:
-        rows = get_db()[PARTY_RESULTS].find(
-            {"election_id": election, "party_id": party, "share": {"$gt": 0}}, proj)
+    GP = ["party:FDI", "party:PD", "party:M5S", "party:LEGA", "party:FI", "party:AVS"]
+    allp = party in ("all", "vincente")
+    proj = {"geo_id": 1, "share": 1, "votes": 1, "election_id": 1, "party_id": 1}
+    dates = {e["_id"]: e["date"] for e in
+             get_db()["elections"].find({"type": "comunali"}, {"date": 1})}
+    q = {"party_id": {"$in": GP} if allp else party, "share": {"$gt": 0}}
+    q["election_id"] = {"$in": list(dates)} if election == "all" else election
+    # per comune: la tornata piu' recente (se 'all') e le quote dei partiti
+    bygeo = {}
+    for r in get_db()[PARTY_RESULTS].find(q, proj):
+        d = dates.get(r["election_id"], "")
+        g = bygeo.setdefault(r["geo_id"], {"date": d, "parties": {}})
+        if election == "all":
+            if d < g["date"]:
+                continue
+            if d > g["date"]:
+                g["date"] = d
+                g["parties"] = {}
+        g["parties"][r["party_id"]] = (r["share"], r.get("votes", 0))
     pts = []
-    for r in rows:
-        c = coords.get(r["geo_id"])
-        if not c:
+    for geo, g in bygeo.items():
+        c = coords.get(geo)
+        if not c or not g["parties"]:
             continue
-        pts.append({"lat": c[0], "lng": c[1], "name": r["geo_id"].split(":", 2)[-1].title(),
-                    "share": r["share"], "votes": r.get("votes", 0)})
+        pid = max(g["parties"], key=lambda k: g["parties"][k][0]) if allp else party
+        if pid not in g["parties"]:
+            continue
+        sh, vt = g["parties"][pid]
+        pts.append({"lat": c[0], "lng": c[1], "name": geo.split(":", 2)[-1].title(),
+                    "party": pid.replace("party:", ""), "share": sh, "votes": vt})
     return jsonify({"election": election, "party": party, "points": pts})
 
 

@@ -765,12 +765,21 @@ async function loadComunali(){
   if(!el){leg.textContent="nessuna tornata comunale caricata";return;}
   const d=await j(`/comunali/map?election=${encodeURIComponent(el)}&party=${encodeURIComponent(pa)}`);
   cmarkers.clearLayers();
-  const pts=d.points||[],max=Math.max(...pts.map(p=>p.share),0.05),c=col(pa);
-  pts.forEach(p=>L.circleMarker([p.lat,p.lng],{radius:4+(p.share/max)*18,color:c,weight:1,fillColor:c,fillOpacity:.55})
-    .bindTooltip(`<b>${p.name}</b>: ${pct(p.share)} (${(p.votes||0).toLocaleString('it-IT')} voti)`).addTo(cmarkers));
-  leg.innerHTML=pts.length
-    ? `<span class="swatch" style="background:${c}"></span> ${pa.replace('party:','')} presente in <b>${pts.length}</b> comuni · max ${pct(max)} · cerchio più grande = quota più alta`
-    : `${pa.replace('party:','')} non si è presentato col proprio simbolo in questa tornata`;
+  const pts=d.points||[],max=Math.max(...pts.map(p=>p.share),0.05);
+  const allp=(pa==="all");
+  pts.forEach(p=>{const c=col("party:"+p.party);
+    L.circleMarker([p.lat,p.lng],{radius:4+(p.share/max)*18,color:c,weight:1,fillColor:c,fillOpacity:.55})
+    .bindTooltip(`<b>${p.name}</b>: ${allp?p.party+' ':''}${pct(p.share)} (${(p.votes||0).toLocaleString('it-IT')} voti)`).addTo(cmarkers);});
+  if(allp){
+    const cnt={}; pts.forEach(p=>cnt[p.party]=(cnt[p.party]||0)+1);
+    leg.innerHTML="<b>Partito vincente per comune</b> ("+pts.length+" comuni): "+
+      Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([p,n])=>`<span class="swatch" style="background:${col('party:'+p)}"></span>${p} ${n}`).join(" · ");
+  } else {
+    const c=col(pa);
+    leg.innerHTML=pts.length
+      ? `<span class="swatch" style="background:${c}"></span> ${pa.replace('party:','')} presente in <b>${pts.length}</b> comuni · max ${pct(max)} · cerchio più grande = quota più alta`
+      : `${pa.replace('party:','')} non si è presentato col proprio simbolo in questa tornata`;
+  }
 }
 
 /* ---------- scenari AI ---------- */
@@ -1046,7 +1055,9 @@ async function init(){
     o.value=e.id;o.textContent=`${e.date} · ${e.n_comuni} comuni`;ce.appendChild(o);});
   ce.value="all";
   const cp=document.getElementById("comparty");
+  const oa=document.createElement("option");oa.value="all";oa.textContent="Tutti (vincente)";cp.appendChild(oa);
   GEO_PARTIES.forEach(p=>{const o=document.createElement("option");o.value="party:"+p;o.textContent=p;cp.appendChild(o);});
+  cp.value="all";
   ce.onchange=loadComunali; cp.onchange=loadComunali;
   await ensureMap("minimap");
   await loadTrend(); renderHouse(); await loadFlows(); renderIdentikit(); renderPartyRegions();
