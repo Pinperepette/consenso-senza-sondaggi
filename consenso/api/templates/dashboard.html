@@ -38,6 +38,8 @@
   #tab-dati .extract-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   #tab-dati .extract-row input[type=text]{flex:1;min-width:240px}
   #tab-dati .save-row{display:flex;align-items:center;gap:10px;margin-top:4px}
+  .dt-sub{background:#0c1016;color:var(--muted);border:1px solid var(--line);font-weight:500}
+  .dt-sub.active{background:var(--accent);color:#06131f;font-weight:600}
   button{cursor:pointer;border:0;border-radius:8px;padding:7px 13px;font-size:14px;
     background:var(--accent);color:#06131f;font-weight:600}
   nav.tabs{display:flex;gap:4px;padding:0 22px;border-bottom:1px solid var(--line);
@@ -364,28 +366,46 @@
   </section>
 
   <section class="tab" id="tab-dati">
+    <div class="subtabs" style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="dt-sub active" data-sub="view">🗄 Visione dati</button>
+      <button class="dt-sub" data-sub="add">✍️ Inserimento</button>
+    </div>
+
+    <!-- VISIONE -->
+    <div id="dt-pane-view">
     <div class="card">
       <h3>🗄 Cosa c'è nel database <span class="muted">— consultazione</span></h3>
       <div id="dt-ov-chips" class="kpi" style="margin-bottom:8px"></div>
-      <div class="grid g2" style="margin-top:6px">
-        <div>
-          <div class="save-row" style="margin:0 0 8px">
-            <b style="font-size:13px">📊 Sondaggi</b>
-            <select id="dt-ov-pollster"><option value="">tutti gli istituti</option></select>
-          </div>
-          <div id="dt-ov-polls" style="max-height:340px;overflow:auto"></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="save-row" style="margin:0 0 8px">
+        <b style="font-size:13px">📈 Andamento sondaggi</b>
+        <select id="dt-tr-party"></select>
+        <span class="muted" style="font-size:12px">media trimestrale per partito (tutti gli istituti)</span>
+      </div>
+      <div style="position:relative;height:240px"><canvas id="dt-trend"></canvas></div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card">
+        <div class="save-row" style="margin:0 0 8px">
+          <b style="font-size:13px">📊 Sondaggi recenti</b>
+          <select id="dt-ov-pollster"><option value="">tutti gli istituti</option></select>
         </div>
-        <div>
-          <div class="save-row" style="margin:0 0 8px">
-            <b style="font-size:13px">🗳 Elezioni</b>
-            <select id="dt-ov-etype"><option value="">tutti i tipi</option><option>comunali</option><option>regionali</option><option>politiche</option><option>europee</option></select>
-          </div>
-          <div id="dt-ov-elections" style="max-height:340px;overflow:auto"></div>
+        <div id="dt-ov-polls" style="max-height:360px;overflow:auto"></div>
+      </div>
+      <div class="card">
+        <div class="save-row" style="margin:0 0 8px">
+          <b style="font-size:13px">🗳 Elezioni</b>
+          <select id="dt-ov-etype"><option value="">tutti i tipi</option><option>comunali</option><option>regionali</option><option>politiche</option><option>europee</option></select>
         </div>
+        <div id="dt-ov-elections" style="max-height:360px;overflow:auto"></div>
       </div>
     </div>
+    </div>
 
-    <div class="card" style="margin-top:16px">
+    <!-- INSERIMENTO -->
+    <div id="dt-pane-add" style="display:none">
+    <div class="card">
       <h3>✍️ Inserimento dati manuale <span class="muted">— ciò che non abbiamo (sondaggi, risultati)</span></h3>
       <div class="hint">Dati marcati "manuale" e <b>rimovibili</b>. Incolla un <b>link</b> e l'AI estrae i numeri (da <b>rivedere</b> prima di salvare).</div>
       <div style="padding:12px 14px;background:#10161d;border-radius:10px;border:1px solid var(--line)">
@@ -434,6 +454,7 @@
       </div>
     </div>
     <div class="note" style="margin-top:14px">⚠️ I dati manuali entrano nei calcoli (sondaggi → segnale/forecast; risultati → motore di swing) ma restano marcati "manuale" e si rimuovono qui sopra. L'estrazione AI è lato input: rivedi sempre i numeri.</div>
+    </div>
   </section>
 
   <p class="muted" style="font-size:12px;margin-top:14px;flex-shrink:0">
@@ -501,7 +522,34 @@ function initDati(){
   document.getElementById("dt-rm-res").onclick=()=>{dtRemove("results","dt-r-status");dtLoadElections();dtOverview();};
   document.getElementById("dt-ov-pollster").onchange=dtLoadPolls;
   document.getElementById("dt-ov-etype").onchange=dtLoadElections;
-  dtOverview();dtLoadPolls();dtLoadElections();
+  // sotto-tab Visione / Inserimento
+  document.querySelectorAll(".dt-sub").forEach(b=>b.onclick=()=>{
+    document.querySelectorAll(".dt-sub").forEach(x=>x.classList.toggle("active",x===b));
+    const v=b.dataset.sub==="view";
+    document.getElementById("dt-pane-view").style.display=v?"":"none";
+    document.getElementById("dt-pane-add").style.display=v?"none":"";
+    if(v&&DT_TREND)setTimeout(()=>DT_TREND.resize(),50);
+  });
+  // selettore partito del grafico trend
+  const tp=document.getElementById("dt-tr-party");
+  DT_PARTIES.forEach(p=>{const o=document.createElement("option");o.value=p;o.textContent=p;tp.appendChild(o);});
+  tp.value="FDI";tp.onchange=dtTrend;
+  dtOverview();dtLoadPolls();dtLoadElections();dtTrend();
+}
+let DT_TREND=null;
+async function dtTrend(){
+  const p=document.getElementById("dt-tr-party").value;
+  const r=await j("/data/poll_trend?party="+p).catch(()=>({series:[]}));
+  const c=col("party:"+p);
+  const ds={label:p,data:(r.series||[]).map(s=>s.value),borderColor:c,backgroundColor:c+"33",
+    tension:.3,pointRadius:0,borderWidth:2,fill:true};
+  const labels=(r.series||[]).map(s=>s.period);
+  if(DT_TREND){DT_TREND.data.labels=labels;DT_TREND.data.datasets=[ds];DT_TREND.update();return;}
+  DT_TREND=new Chart(document.getElementById("dt-trend"),{type:"line",
+    data:{labels,datasets:[ds]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{maxTicksLimit:12,color:"#7a8699",font:{size:10}},grid:{display:false}},
+              y:{ticks:{color:"#7a8699",callback:v=>v+"%"},grid:{color:"#1c2530"}}}}});
 }
 async function dtOverview(){
   const o=await j("/data/overview").catch(()=>null);if(!o)return;

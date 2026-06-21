@@ -413,6 +413,25 @@ def data_overview():
     })
 
 
+@api.get("/data/poll_trend")
+def data_poll_trend():
+    """Media trimestrale dei sondaggi per partito (per il grafico di consultazione)."""
+    db = get_db()
+    party = "party:" + (request.args.get("party") or "FDI").replace("party:", "")
+    buckets = {}
+    for r in db["polls"].find({"party_id": party}, {"date": 1, "share": 1}):
+        d = r.get("date", "")
+        if len(d) < 7:
+            continue
+        q = (int(d[5:7]) - 1) // 3 + 1
+        key = f"{d[:4]}-Q{q}"
+        b = buckets.setdefault(key, [0.0, 0])
+        b[0] += r["share"]; b[1] += 1
+    series = [{"period": k, "value": round(100 * v[0] / v[1], 1)}
+              for k, v in sorted(buckets.items()) if v[1]]
+    return jsonify({"party": party.replace("party:", ""), "series": series})
+
+
 @api.get("/data/polls")
 def data_polls():
     """Sondaggi raggruppati per (istituto, data), piu' recenti prima."""
