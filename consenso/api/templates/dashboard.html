@@ -380,7 +380,7 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==="map"){ensureMap("map");setTimeout(()=>maps.map&&maps.map.invalidateSize(),60);}
   if(b.dataset.tab==="overview"){setTimeout(()=>maps.minimap&&maps.minimap.invalidateSize(),60);}
   if(b.dataset.tab==="trend"){setTimeout(()=>CHART&&CHART.resize(),60);}
-  if(b.dataset.tab==="comunali"){ensureCmap().then(()=>{setTimeout(()=>cmap&&cmap.invalidateSize(),60);loadComunali();});}
+  if(b.dataset.tab==="comunali"){ensureCmap().then(()=>{setTimeout(()=>{if(cmap)cmap.invalidateSize();loadComunali();},120);});}
   if(b.dataset.tab==="confronto"){loadSavedList();}
   if(b.dataset.tab==="dimensioni"){loadDimensioni();}
   if(b.dataset.tab==="seggi"){loadSeggi();}
