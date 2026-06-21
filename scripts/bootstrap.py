@@ -47,6 +47,7 @@ def main() -> int:
           f"{r['n_parties']} partiti.", flush=True)
     sh("scripts/build_spatial_summary.py", optional=True)   # scheda Partiti (identikit)
     sh("scripts/calibrate.py", optional=True)               # auto-calibra phi/kappa sul backtest
+    sh("scripts/build_trackrecord.py", optional=True)       # scheda Track record (backtest per elezione)
     # flussi elettorali (scheda Flussi): inferenza ecologica 2022 -> 2024
     try:
         from consenso.model.flow_pipeline import run_flow_model
@@ -66,6 +67,18 @@ def main() -> int:
             print(">> dimensioni: saltate (nessuna chiave AI)", flush=True)
     except Exception as exc:  # noqa: BLE001
         print(f"(dimensioni saltate: {exc})", flush=True)
+    # corroborazione regionale (scheda Previsioni): popola la cache regional_2020
+    try:
+        from consenso.model.corroboration import regional_corroboration
+        regional_corroboration()
+        print(">> corroborazione regionale pronta", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"(corroborazione saltata: {exc})", flush=True)
+    # RUN PROD FINALE: calibrate/build_trackrecord creano run 'cutoff' degradati;
+    # questo riporta l'ultimo run a quello completo (con regioni -> mappa ok).
+    print("\n>> run_model PROD finale (post-calibrazione, con regioni)…", flush=True)
+    rf = run_model(include_regional=True, include_polls=True)
+    print(f"OK — run finale {rf['run_id']}, {rf['n_regions']} regioni.", flush=True)
     print("Apri http://localhost:5057", flush=True)
     return 0
 
