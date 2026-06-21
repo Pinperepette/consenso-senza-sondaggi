@@ -114,11 +114,13 @@ def ingest_storico(date: str) -> dict:
 
     docs = []
     for geo, parties in agg.items():
+        total = sum(parties.values())
         for pid, v in parties.items():
             docs.append({"election_id": eid, "geo_id": geo, "geo_level": "comune",
                          "party_id": None if pid.startswith("raw:") else pid,
                          "raw_label": pid[4:] if pid.startswith("raw:") else None,
-                         "votes": v, "valid_votes_area": 0, "share": None,
+                         "votes": v, "valid_votes_area": total,
+                         "share": (v / total if total else None),
                          "_meta": {"source": "comunali_storico"}})
     db = get_db()
     db[PARTY_RESULTS].delete_many({"election_id": eid, "geo_level": "comune"})
