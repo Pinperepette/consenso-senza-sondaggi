@@ -44,11 +44,17 @@ def calibrate(cutoffs=("2017-12-31", "2021-12-31", "2023-12-31"),
     from consenso.model.fundamentals import cost_of_governing_drift, governing_parties
     from config import CONFIG
 
+    # guard-rail: la calibrazione decide parametri che restano nel sistema. Con poche
+    # catene l'MCMC non converge e la calibrazione degrada (CRPS pessima, gov_cost=0).
+    # Forziamo un minimo robusto a prescindere da CONSENSO_NUM_CHAINS.
+    chains = max(int(getattr(CONFIG.model, "num_chains", 4) or 4), 4)
+
     trained = []
     for c in cutoffs:
         try:
             rid = run_model(up_to_date=c, include_regional=False, include_polls=True,
-                            trend=True, num_warmup=num_warmup, num_samples=num_samples)["run_id"]
+                            trend=True, num_warmup=num_warmup, num_samples=num_samples,
+                            num_chains=chains)["run_id"]
         except Exception:  # noqa: BLE001 - cutoff senza storia sufficiente: salta
             continue
         hp = get_db()["model_runs"].find_one({"_id": rid})["hyperparams"]
@@ -91,6 +97,17 @@ def calibrate(cutoffs=("2017-12-31", "2021-12-31", "2023-12-31"),
     grid = [(phi, kappa, crps_for(phi, kappa)) for phi in phis for kappa in kappas]
     grid.sort(key=lambda r: r[2])
     best_phi, best_kappa, best_crps = grid[0]
+    # guard-rail: una CRPS assurda (>0.5 = ~50 punti) segnala MCMC non convergente.
+    # Non sovrascrivere i parametri buoni con spazzatura: tieni i precedenti / default.
+    MAX_OK_CRPS = 0.5
+    if best_crps > MAX_OK_CRPS:
+        prev = get_db()["model_config"].find_one({"_id": "calib"})
+        keep = prev or {"trend_damping": DEFAULTS["trend_damping"],
+                        "gov_cost": DEFAULTS["gov_cost"]}
+        return {"trend_damping": keep["trend_damping"], "gov_cost": keep["gov_cost"],
+                "crps": best_crps, "grid": grid[:5], "skipped_save": True,
+                "note": f"CRPS {best_crps:.2f} non plausibile (MCMC non converge?): "
+                        "parametri NON aggiornati, tengo i precedenti."}
     get_db()["model_config"].replace_one(
         {"_id": "calib"},
         {"_id": "calib", "trend_damping": best_phi, "gov_cost": best_kappa,

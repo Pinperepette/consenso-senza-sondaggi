@@ -27,12 +27,14 @@ def run_model(election_ids: Optional[List[str]] = None,
               include_polls: bool = False,
               trend: bool = True,
               num_warmup: Optional[int] = None,
-              num_samples: Optional[int] = None) -> Dict:
+              num_samples: Optional[int] = None,
+              num_chains: Optional[int] = None) -> Dict:
     """Assembla i dati, esegue l'inferenza e materializza le stime."""
     data = assemble_model_data(election_ids=election_ids, up_to_date=up_to_date,
                                include_regional=include_regional,
                                include_polls=include_polls, trend=trend)
-    run_id, _ = run_inference(data, num_warmup=num_warmup, num_samples=num_samples)
+    run_id, _ = run_inference(data, num_warmup=num_warmup, num_samples=num_samples,
+                              num_chains=num_chains)
     n_est = summarize_run(run_id)
     audit("pipeline", "run_model", {"run_id": run_id, "n_estimations": n_est,
                                     "n_obs": int(data.obs_eta.shape[0])})
