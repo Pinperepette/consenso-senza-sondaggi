@@ -39,5 +39,9 @@
   "AVS": [
     {"date": "2022-09-25", "kind": "alleanza", "title": "Nasce l'Alleanza Verdi e Sinistra", "note": "Cartello tra Sinistra Italiana ed Europa Verde alle politiche 2022.", "source": "https://it.wikipedia.org/wiki/Alleanza_Verdi_e_Sinistra"},
     {"date": "2024-06-09", "kind": "picco", "title": "Europee 2024: ~6,8% (Salis e Lucano eletti)", "note": "Crescita trainata da candidature simbolo.", "source": "https://it.wikipedia.org/wiki/Elezioni_europee_del_2024_in_Italia"}
+  ],
+  "FN": [
+    {"date": "2023-08-19", "kind": "picco", "title": "\"Il mondo al contrario\": il caso Vannacci", "note": "Il libro autopubblicato del generale scatena polemiche e lo rende un personaggio politico.", "source": "https://it.wikipedia.org/wiki/Roberto_Vannacci"},
+    {"date": "2024-06-09", "kind": "alleanza", "title": "Eletto eurodeputato con la Lega", "note": "Capolista in piu' circoscrizioni, oltre mezzo milione di preferenze: entra in politica dentro la Lega.", "source": "https://it.wikipedia.org/wiki/Roberto_Vannacci"}
   ]
 }

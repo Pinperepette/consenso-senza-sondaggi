@@ -565,9 +565,12 @@ const TL_KIND={dietrofront:"#e2785b",alleanza:"#e0b35a",picco:"#7ee29a",minimo:"
 let TL_WIRED=false;
 async function loadTimeline(){
   const sel=document.getElementById("tl-party");
-  if(!sel.options.length){
-    ["LEGA","FDI","FI","PD","M5S","AVS"].forEach(p=>{const o=document.createElement("option");o.value=p;o.textContent=p;sel.appendChild(o);});
-    sel.value="LEGA";
+  // selettore DINAMICO dai partiti del run (i nuovi, es. FN, entrano da soli)
+  const want=(ALL_PARTIES&&ALL_PARTIES.length?ALL_PARTIES:["LEGA","FDI","FI","PD","M5S","AVS"]).filter(p=>p!=="ALTRI");
+  if(sel.options.length!==want.length){
+    const cur=sel.value; sel.innerHTML="";
+    want.forEach(p=>{const o=document.createElement("option");o.value=p;o.textContent=p;sel.appendChild(o);});
+    sel.value=want.includes(cur)?cur:"LEGA";
   }
   if(!TL_WIRED){   // cabla SEMPRE i controlli, una sola volta
     TL_WIRED=true;

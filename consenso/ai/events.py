@@ -16,6 +16,7 @@ PARTY_WIKI = {
     "PD": "Partito Democratico (Italia)",
     "M5S": "Movimento 5 Stelle",
     "AVS": "Alleanza Verdi e Sinistra",
+    "FN": "Roberto Vannacci",
 }
 
 SYSTEM = (
