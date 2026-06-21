@@ -29,6 +29,7 @@ def sh(*args: str, optional: bool = False) -> None:
 def main() -> int:
     sh("scripts/init_db.py")
     sh("scripts/load_opendata.py")                 # politiche 2022 + europee 2024
+    sh("scripts/load_national_history.py", optional=True)    # nazionali storiche 2008-2019 (ancore track record)
     sh("scripts/load_regionali_2025.py", optional=True)
     sh("scripts/load_comunali_catalogo.py", optional=True)   # scheda Comunali (recenti)
     sh("scripts/load_comunali_storico.py", optional=True)    # comunali storiche 2010-2022

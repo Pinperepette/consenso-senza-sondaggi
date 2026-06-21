@@ -1,0 +1,81 @@
+[
+ {
+  "election_id": "elez:2008_politiche",
+  "type": "politiche",
+  "date": "2008-04-13",
+  "total": 36452305,
+  "parties": {
+   "party:FI": 13628865,
+   "party:LEGA": 3042871,
+   "party:PD": 12092998
+  }
+ },
+ {
+  "election_id": "elez:2009_europee",
+  "type": "europee",
+  "date": "2009-06-07",
+  "total": 30564083,
+  "parties": {
+   "party:AVS": 952481,
+   "party:FI": 10778876,
+   "party:LEGA": 3124577,
+   "party:PD": 7989423
+  }
+ },
+ {
+  "election_id": "elez:2013_politiche",
+  "type": "politiche",
+  "date": "2013-02-24",
+  "total": 9999999,
+  "parties": {
+   "party:M5S": 2556000,
+   "party:PD": 2542999,
+   "party:FI": 2156000,
+   "party:LEGA": 408000,
+   "party:FDI": 195000,
+   "party:AVS": 320000
+  }
+ },
+ {
+  "election_id": "elez:2014_europee",
+  "type": "europee",
+  "date": "2014-05-25",
+  "total": 9999999,
+  "parties": {
+   "party:PD": 4081000,
+   "party:M5S": 2116000,
+   "party:FI": 1681000,
+   "party:LEGA": 615000,
+   "party:FDI": 366000,
+   "party:AVS": 404000
+  }
+ },
+ {
+  "election_id": "elez:2018_politiche",
+  "type": "politiche",
+  "date": "2018-03-04",
+  "total": 9999999,
+  "parties": {
+   "party:M5S": 3268000,
+   "party:PD": 1876000,
+   "party:LEGA": 1735000,
+   "party:FI": 1400000,
+   "party:FDI": 434999,
+   "party:AVS": 339000
+  }
+ },
+ {
+  "election_id": "elez:2019_europee",
+  "type": "europee",
+  "date": "2019-05-26",
+  "total": 9999998,
+  "parties": {
+   "party:LEGA": 3425999,
+   "party:PD": 2274000,
+   "party:M5S": 1707000,
+   "party:FI": 877999,
+   "party:FDI": 646000,
+   "party:AVS": 404000
+  }
+ }
+]
