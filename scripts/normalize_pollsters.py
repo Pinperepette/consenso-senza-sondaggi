@@ -14,11 +14,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from consenso.db.client import get_db  # noqa: E402
 
 
+# brand scritti volutamente in camelCase: NON spezzarli
+KEEP = {"youtrend": "YouTrend", "you trend": "YouTrend",
+        "winpoll": "Winpoll", "swg": "SWG"}
+
+
 def normalize(name: str) -> str:
     p = re.sub(r"\s*Archived.*Wayback Machine", "", name, flags=re.I)
     p = re.sub(r"\s*[–-]\s*Winpoll", "", p)
+    if p.strip().lower() in KEEP:
+        return KEEP[p.strip().lower()]
     p = re.sub(r"([a-z])([A-Z])", r"\1 \2", p)   # camelCase -> spazi
-    return re.sub(r"\s+", " ", p).strip()
+    p = re.sub(r"\s+", " ", p).strip()
+    return KEEP.get(p.lower(), p)
 
 
 def main() -> int:
