@@ -365,6 +365,22 @@ def _coal_arg():
     return None, request.args.get("as_of")
 
 
+@api.get("/trackrecord")
+def trackrecord():
+    """Storico onesto: previsione del modello (allenato sul prima) vs risultato reale,
+    per ogni elezione nazionale passata."""
+    recs = list(get_db()["track_record"].find({}, {"_id": 0}))
+    recs.sort(key=lambda r: r["date"])
+    overall = None
+    if recs:
+        import numpy as np
+        errs = [p["err"] for r in recs for p in r["parties"]]
+        cov = [1.0 if p["in_ci"] else 0.0 for r in recs for p in r["parties"]]
+        overall = {"mae": float(np.mean(errs)), "coverage": float(np.mean(cov)),
+                   "n_elections": len(recs)}
+    return jsonify({"elections": recs, "overall": overall})
+
+
 @api.route("/coalitions", methods=["GET", "POST"])
 def coalitions():
     """Quote delle coalizioni (somma membri) con IC95 propagato. Composizione

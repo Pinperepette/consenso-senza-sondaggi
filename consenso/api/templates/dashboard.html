@@ -123,6 +123,7 @@
   <button data-tab="seggi">🏛️ Seggi</button>
   <button data-tab="scenari">🧪 Scenari AI</button>
   <button data-tab="confronto">⚖️ Confronto</button>
+  <button data-tab="track">🎯 Track record</button>
 </nav>
 <div id="scenbanner" style="display:none;background:#231a10;border-bottom:1px solid #4a3a1a;
   color:#e0b35a;padding:8px 22px;font-size:13px;flex-shrink:0">
@@ -307,6 +308,16 @@
     </div>
   </section>
 
+  <section class="tab" id="tab-track">
+    <div class="card">
+      <h3>🎯 Track record <span class="muted">— le nostre previsioni passate vs il risultato reale</span></h3>
+      <div class="hint">per ogni elezione, il modello è allenato <b>solo sui dati precedenti</b> (fino a ~1 mese prima) e poi confrontato col voto vero. Include anche le previsioni sbagliate: è il senso dell'onestà.</div>
+      <div id="track-overall" style="margin:10px 0"></div>
+      <div id="track-list"></div>
+    </div>
+    <div class="note" style="margin-top:14px">⚠️ "Dentro IC" = il risultato reale cadeva nell'intervallo credibile 95% della previsione. Errore medio basso + buona copertura = stime oneste.</div>
+  </section>
+
   <p class="muted" style="font-size:12px;margin-top:14px;flex-shrink:0">
     Fonti reali: Ministero dell'Interno/Eligendo (8 elezioni nazionali 2008-2024 + 13 regionali, 7.800 comuni) ·
     reddito MEF · confini ISTAT. Nessun sondaggio. Le correlazioni sono a livello di comune (ecologiche), non individuali.
@@ -350,7 +361,33 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==="confronto"){loadSavedList();}
   if(b.dataset.tab==="dimensioni"){loadDimensioni();}
   if(b.dataset.tab==="seggi"){loadSeggi();}
+  if(b.dataset.tab==="track"){loadTrack();}
 });
+
+/* ---------- track record ---------- */
+async function loadTrack(){
+  const r=await j("/trackrecord").catch(()=>({elections:[]}));
+  const ov=document.getElementById("track-overall");
+  if(r.overall) ov.innerHTML=`<b>Bilancio su ${r.overall.n_elections} elezioni:</b> errore medio
+    <b style="color:#7ee29a">${(r.overall.mae*100).toFixed(1)} punti</b> ·
+    risultato dentro l'IC95% nel <b>${Math.round(r.overall.coverage*100)}%</b> dei casi`;
+  else { ov.innerHTML="<span class='muted'>track record non ancora costruito (scripts/build_trackrecord.py)</span>"; }
+  const el=document.getElementById("track-list");
+  el.innerHTML=(r.elections||[]).map(e=>{
+    const rows=e.parties.sort((a,b)=>b.actual-a.actual).map(p=>{
+      const sign=(p.pred-p.actual)>=0?"+":"";
+      const ok=p.in_ci?"✓":"✗", okc=p.in_ci?"#7ee29a":"#e2785b";
+      return `<div class="row" style="gap:8px;font-size:13px;margin:1px 0">
+        <div class="pname" style="width:54px;color:${col('party:'+p.party)}">${p.party}</div>
+        <div style="width:150px">prev <b>${(p.pred*100).toFixed(1)}</b> <span class="muted">[${(p.ci95[0]*100).toFixed(0)}-${(p.ci95[1]*100).toFixed(0)}]</span></div>
+        <div style="width:70px">reale <b>${(p.actual*100).toFixed(1)}</b></div>
+        <div style="width:60px;color:${Math.abs(p.pred-p.actual)>0.05?'#e2785b':'#8a97a8'}">${sign}${((p.pred-p.actual)*100).toFixed(1)}</div>
+        <div style="color:${okc}">${ok}</div></div>`;}).join("");
+    const nm=e.type==="politiche"?"Politiche":"Europee";
+    return `<div style="margin:12px 0;border-top:1px solid #1c2530;padding-top:8px">
+      <b>${nm} ${e.date.slice(0,4)}</b> <span class="muted" style="font-size:12px">(allenato fino al ${e.cutoff}) · MAE ${(e.mae*100).toFixed(1)} pt</span>
+      ${rows}</div>`;}).join("");
+}
 
 /* ---------- coalizioni & seggi ---------- */
 let COALDEF=null, ALLP=[];

@@ -113,6 +113,7 @@ def run_backtest(train_until: str, num_warmup: Optional[int] = None,
             abs_err = abs(float(fc.mean()) - a)
             crps = _crps_sample(fc, a)
             per_party.append({"party_id": pid, "pred_mean": float(fc.mean()),
+                              "ci95": [float(lo), float(hi)],
                               "actual": a, "in_ci95": in_ci,
                               "abs_err": abs_err, "crps": crps})
             all_abs_err.append(abs_err); all_crps.append(crps); all_cover.append(in_ci)
