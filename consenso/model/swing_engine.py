@@ -28,8 +28,10 @@ def _d(s: str) -> str:
     return (s or "")[:10]
 
 
-def poll_value(db, party: str, day: str, window: int = 90) -> Optional[float]:
-    """Media nazionale dei sondaggi per un partito in una finestra attorno a 'day'."""
+def poll_value(db, party: str, day: str, window: int = 90,
+               before: Optional[str] = None) -> Optional[float]:
+    """Media nazionale dei sondaggi per un partito in una finestra attorno a 'day'.
+    Se 'before' e' dato, ignora i sondaggi successivi (no leakage nei backtest)."""
     pid = "party:" + party
     try:
         d0 = _date.fromisoformat(_d(day))
@@ -38,6 +40,8 @@ def poll_value(db, party: str, day: str, window: int = 90) -> Optional[float]:
     for w in (window, window * 2, window * 4):     # allarga se pochi dati
         lo = _date.fromordinal(d0.toordinal() - w).isoformat()
         hi = _date.fromordinal(d0.toordinal() + w).isoformat()
+        if before and hi > before:
+            hi = before
         vals = [r["share"] for r in db["polls"].find(
             {"party_id": pid, "date": {"$gte": lo, "$lte": hi}}, {"share": 1})]
         if len(vals) >= 3:
@@ -70,8 +74,9 @@ def _shares_by_geo(db, election_ids, geos=None) -> dict:
     return best
 
 
-def swing_signal(target_eid: str) -> dict:
-    """Segnale di swing reale-vs-sondaggi per l'elezione target."""
+def swing_signal(target_eid: str, before: Optional[str] = None) -> dict:
+    """Segnale di swing reale-vs-sondaggi per l'elezione target.
+    'before': limita i sondaggi a prima di questa data (backtest senza leakage)."""
     from consenso.db.client import get_db
     db = get_db()
     tgt = db["elections"].find_one({"_id": target_eid}, {"type": 1, "date": 1})
@@ -106,7 +111,7 @@ def swing_signal(target_eid: str) -> dict:
         if not sw[p]:
             continue
         real = mean(sw[p])
-        pv0, pv1 = poll_value(db, p, prior_date), poll_value(db, p, tdate)
+        pv0, pv1 = poll_value(db, p, prior_date, before=before), poll_value(db, p, tdate, before=before)
         poll = (pv1 - pv0) if (pv0 is not None and pv1 is not None) else None
         parties.append({"party": p, "n_units": len(sw[p]),
                         "real_swing": round(real, 1),
