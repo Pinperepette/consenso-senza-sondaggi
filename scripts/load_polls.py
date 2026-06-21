@@ -137,8 +137,10 @@ def load_all_polls(verbose: bool = False) -> dict:
         if verbose:
             print(f"  {url.split('/')[-1][:40]}: {len(w)} righe")
         rows += w
+    from scripts.normalize_pollsters import normalize as _norm_pollster
     seen, uniq = set(), []
     for r in rows:
+        r["pollster"] = _norm_pollster(r["pollster"])   # unifica varianti (AnalisiPolitica, Archived, …)
         k = (r["pollster"], r["date"], r["party_id"])
         if k not in seen:
             seen.add(k); uniq.append(r)
