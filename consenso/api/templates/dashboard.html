@@ -760,9 +760,9 @@ async function ensureCmap(){
 }
 async function loadComunali(){
   if(!cmap)return;
-  const el=document.getElementById("comelect").value, pa=document.getElementById("comparty").value;
+  // default a 'all' anche se i selettori non sono ancora popolati (init in corso)
+  const el=document.getElementById("comelect").value||"all", pa=document.getElementById("comparty").value||"all";
   const leg=document.getElementById("comlegend");
-  if(!el){leg.textContent="nessuna tornata comunale caricata";return;}
   const d=await j(`/comunali/map?election=${encodeURIComponent(el)}&party=${encodeURIComponent(pa)}`);
   cmarkers.clearLayers();
   const pts=d.points||[],max=Math.max(...pts.map(p=>p.share),0.05);
