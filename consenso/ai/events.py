@@ -10,12 +10,12 @@ import re
 from typing import List, Optional
 
 PARTY_WIKI = {
-    "LEGA": "Lega_(partito_politico_2020)",
-    "FDI": "Fratelli_d'Italia",
-    "FI": "Forza_Italia_(2013)",
-    "PD": "Partito_Democratico_(Italia)",
-    "M5S": "Movimento_5_Stelle",
-    "AVS": "Alleanza_Verdi_e_Sinistra",
+    "LEGA": "Lega per Salvini Premier",
+    "FDI": "Fratelli d'Italia",
+    "FI": "Forza Italia (2013)",
+    "PD": "Partito Democratico (Italia)",
+    "M5S": "Movimento 5 Stelle",
+    "AVS": "Alleanza Verdi e Sinistra",
 }
 
 SYSTEM = (
@@ -45,11 +45,11 @@ def discover_from_wikipedia(party: str) -> dict:
     page = PARTY_WIKI.get(party.upper())
     if not page:
         return {"error": f"nessuna pagina nota per {party}"}
+    from urllib.parse import quote
     from consenso.etl.base import http_get
-    title = page.replace("_", " ")
     api = ("https://it.wikipedia.org/w/api.php?format=json&action=query&prop=extracts"
-           "&explaintext=1&redirects=1&titles=" + title.replace(" ", "%20").replace("'", "%27"))
-    url = f"https://it.wikipedia.org/wiki/{page}"
+           "&explaintext=1&redirects=1&titles=" + quote(page))
+    url = "https://it.wikipedia.org/wiki/" + quote(page.replace(" ", "_"))
     try:
         data = _json.loads(http_get(api).decode("utf-8", "replace"))
         pages = data["query"]["pages"]
