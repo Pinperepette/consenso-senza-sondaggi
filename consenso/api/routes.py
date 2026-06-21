@@ -580,6 +580,49 @@ def swings_route():
     return jsonify(swings())
 
 
+@api.get("/flows/sankey")
+def flows_sankey():
+    """Flussi 2022->2024 come bande 'da->verso' per un partito (per il Sankey).
+    dir=out: dove sono andati i voti del partito (proporzioni della sua riga).
+    dir=in: da dove arrivano i suoi voti 2024 (composizione, pesata sui risultati 2022)."""
+    db = get_db()
+    f = db["flow_models"].find_one(sort=[("_id", -1)])
+    if not f:
+        return jsonify({"error": "nessun flusso"}), 404
+    pf, pt = f["parties_from"], f["parties_to"]
+    M = f["transfer_matrix_mean"]
+    party = "party:" + (request.args.get("party") or "FDI").replace("party:", "")
+    direction = request.args.get("dir", "out")
+    nm = lambda x: x.replace("party:", "").replace("astensione", "Astensione")
+
+    if direction == "out":
+        if party not in pf:
+            return jsonify({"party": nm(party), "dir": "out", "ribbons": []})
+        i = pf.index(party)
+        ribbons = [{"label": nm(pt[j]), "key": pt[j], "value": round(M[i][j], 4)}
+                   for j in range(len(pt)) if M[i][j] > 0.005]
+    else:
+        # pesa per i risultati reali 2022 (composizione onesta dei voti 2024)
+        agg, tot = {}, 0
+        for r in db[PARTY_RESULTS].find({"election_id": f["from_election"]},
+                                        {"party_id": 1, "votes": 1}):
+            tot += r.get("votes", 0)
+            if r.get("party_id"):
+                agg[r["party_id"]] = agg.get(r["party_id"], 0) + r["votes"]
+        w = {p: agg.get(p, 0) / tot for p in pf} if tot else {p: 1.0 for p in pf}
+        if party not in pt:
+            return jsonify({"party": nm(party), "dir": "in", "ribbons": []})
+        j = pt.index(party)
+        raw = [(pf[i], w.get(pf[i], 0.0) * M[i][j]) for i in range(len(pf))]
+        s = sum(v for _, v in raw) or 1.0
+        ribbons = [{"label": nm(k), "key": k, "value": round(v / s, 4)}
+                   for k, v in raw if v / s > 0.005]
+    ribbons.sort(key=lambda r: -r["value"])
+    return jsonify({"party": nm(party), "dir": direction,
+                    "from_election": f["from_election"], "to_election": f["to_election"],
+                    "ribbons": ribbons})
+
+
 @api.get("/parliament/discipline")
 def parliament_discipline():
     """Cosa mostrano DAVVERO i voti finali della Camera (leg. 19): quanto ogni

@@ -238,8 +238,14 @@
   <section class="tab" id="tab-flows">
     <div class="card">
       <h3>Flussi elettorali <span class="muted" id="flowsrc"></span></h3>
-      <div class="hint">riga = da chi · colonna = verso chi · intensità = quota trasferita (7.800 comuni)</div>
-      <div style="overflow:auto"><table class="heat" id="flowtab"></table></div>
+      <div class="hint">Da dove arriva e dove va il voto di un partito tra 2022 e 2024 (inferenza ecologica su 7.800 comuni). Banda spessa = molti voti.</div>
+      <div class="save-row" style="margin:8px 0">
+        Partito <select id="flow-party"></select>
+        <select id="flow-dir"><option value="out">dove sono andati i suoi voti (2022→2024)</option><option value="in">da dove arrivano i suoi voti (2024)</option></select>
+      </div>
+      <div id="flow-sankey"></div>
+      <details style="margin-top:10px"><summary class="hint" style="cursor:pointer">matrice completa</summary>
+        <div style="overflow:auto;margin-top:8px"><table class="heat" id="flowtab"></table></div></details>
     </div>
   </section>
 
@@ -1045,8 +1051,15 @@ async function renderHouse(){
 /* ---------- flows heatmap ---------- */
 async function loadFlows(){
   const f=await j("/flows/latest");const t=document.getElementById("flowtab");
-  if(f.error){t.innerHTML="<tr><td class='muted'>nessun flusso stimato</td></tr>";return;}
+  if(f.error){t.innerHTML="<tr><td class='muted'>nessun flusso stimato</td></tr>";document.getElementById("flow-sankey").innerHTML="<span class='muted'>nessun flusso</span>";return;}
   document.getElementById("flowsrc").textContent=`${f.from_election.replace('elez:','')} → ${f.to_election.replace('elez:','')}`;
+  // selettore partito + direzione per il Sankey
+  const sp=document.getElementById("flow-party");
+  if(!sp.options.length){
+    f.parties_from.filter(p=>p!=="astensione").forEach(p=>{const o=document.createElement("option");o.value=p.replace("party:","");o.textContent=p.replace("party:","");sp.appendChild(o);});
+    sp.value="FDI"; sp.onchange=drawSankey; document.getElementById("flow-dir").onchange=drawSankey;
+  }
+  drawSankey();
   const cf=f.parties_from,ct=f.parties_to,M=f.transfer_matrix_mean,nm=x=>x.replace("party:","").replace("astensione","AST");
   let h="<tr><th>da \\ a</th>"+ct.map(c=>`<th style="color:${col(c)}">${nm(c)}</th>`).join("")+"</tr>";
   cf.forEach((src,i)=>{
@@ -1055,6 +1068,36 @@ async function loadFlows(){
         return `<td style="background:${v>0.02?bg:'transparent'}">${v>0.01?(v*100).toFixed(0):''}</td>`;}).join("")+"</tr>";
   });
   t.innerHTML=h;
+}
+async function drawSankey(){
+  const p=document.getElementById("flow-party").value, dir=document.getElementById("flow-dir").value;
+  const r=await j(`/flows/sankey?party=${p}&dir=${dir}`).catch(()=>({ribbons:[]}));
+  const el=document.getElementById("flow-sankey");
+  const rb=r.ribbons||[];
+  if(!rb.length){el.innerHTML="<span class='muted'>nessun flusso rilevante</span>";return;}
+  const W=el.clientWidth||760, rowH=30, H=rb.length*rowH+20, xL=150, xR=W-160, mc=col("party:"+p);
+  const max=Math.max(...rb.map(x=>x.value));
+  // nodo del partito a sinistra (out) o destra (in), controparti dall'altro lato
+  const left=dir==="out";
+  let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" style="font-size:12px">`;
+  // nodo centrale del partito
+  const cx=left?xL:xR, cyTop=10, cyBot=H-10;
+  svg+=`<rect x="${cx-8}" y="${cyTop}" width="8" height="${cyBot-cyTop}" fill="${mc}"/>`;
+  svg+=`<text x="${left?cx-14:cx+14}" y="${(cyTop+cyBot)/2}" fill="#cdd6e0" text-anchor="${left?'end':'start'}" dominant-baseline="middle" font-weight="700">${r.party} ${left?'2022':'2024'}</text>`;
+  let y=10;
+  rb.forEach(x=>{
+    const c=col("party:"+x.key.replace("astensione","")) , band=Math.max(3,x.value/max*(rowH-8));
+    const oy=y+rowH/2, ox=left?xR:xL;
+    const c1=left?cx:ox, c2=left?ox:cx;
+    // ribbon: curva da nodo centrale al nodo controparte
+    svg+=`<path d="M ${left?cx:cx} ${(cyTop+cyBot)/2} C ${(cx+ox)/2} ${(cyTop+cyBot)/2}, ${(cx+ox)/2} ${oy}, ${ox} ${oy}" stroke="${col('party:'+x.key.replace('astensione',''))||'#888'}" stroke-width="${band}" fill="none" opacity="0.5"/>`;
+    // nodo controparte + etichetta
+    svg+=`<rect x="${left?xR:xL-8}" y="${oy-rowH/2+6}" width="8" height="${rowH-12}" fill="${x.key==='astensione'?'#7a8699':(col('party:'+x.key)||'#888')}"/>`;
+    svg+=`<text x="${left?xR+14:xL-14}" y="${oy}" fill="#aab" text-anchor="${left?'start':'end'}" dominant-baseline="middle">${x.label} <tspan fill="#fff" font-weight="700">${(x.value*100).toFixed(0)}%</tspan></text>`;
+    y+=rowH;
+  });
+  svg+="</svg>";
+  el.innerHTML=svg;
 }
 
 /* ---------- party detail ---------- */
