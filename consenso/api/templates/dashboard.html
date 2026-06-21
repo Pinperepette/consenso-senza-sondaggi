@@ -168,7 +168,7 @@
   <button data-tab="scenari">🧪 Scenari AI</button>
   <button data-tab="confronto">⚖️ Confronto</button>
   <button data-tab="track">🎯 Track record</button>
-  <button data-tab="coerenza">📜 Coerenza</button>
+  <button data-tab="coerenza">🏛 Disciplina</button>
   <button data-tab="urnevssondaggi">📊 Urne vs Sondaggi</button>
   <button data-tab="dati">✍️ Dati</button>
 </nav>
@@ -378,12 +378,12 @@
 
   <section class="tab" id="tab-coerenza">
     <div class="card">
-      <h3>📜 Fatti vs parole <span class="muted">— il voto reale in Parlamento</span></h3>
-      <div class="hint">FATTI: come ogni partito ha votato sui <b>voti finali reali</b> della Camera (dati aperti, leg. 18-19). Confrontalo con cosa <b>dichiara</b> (scheda Dimensioni). Dati contati, non ricostruzione AI. Layer separato dal consenso.</div>
-      <label class="ctrl" style="margin:8px 0;display:block">Partito <select id="coh-party"></select></label>
-      <div id="coh-tally" style="margin:8px 0"></div>
-      <div id="coh-list" style="max-height:520px;overflow:auto"></div>
+      <h3>🏛 Disciplina &amp; rotture <span class="muted">— i voti finali reali della Camera (leg. 19)</span></h3>
+      <div class="hint">Cosa dicono <b>davvero</b> i voti: quanto ogni partito vota compatto col proprio blocco e le <b>rare</b> volte che ha rotto. I voti finali non misurano "coerenza" parole-vs-fatti (la maggioranza approva, l'opposizione boccia): questo è il dato onesto che se ne ricava. Dati contati, non AI.</div>
+      <div id="coh-overall" class="kpi" style="margin:10px 0"></div>
+      <div id="coh-list"></div>
     </div>
+    <div class="note" style="margin-top:14px">⚠️ "Disciplina" = % di voti in cui il partito ha seguito la maggioranza del suo blocco. "Rotture" = le volte che ha votato contro il proprio blocco (segnale raro e quindi significativo). "Voti larghi" = approvati da entrambi i blocchi (consenso bipartisan).</div>
   </section>
 
   <section class="tab" id="tab-urnevssondaggi">
@@ -750,29 +750,26 @@ async function loadUrneVsSondaggi(){
 
 /* ---------- fatti vs parole: voti reali in Parlamento ---------- */
 async function loadCoherence(){
-  const sel=document.getElementById("coh-party");
-  if(!sel.options.length){
-    ["FDI","PD","M5S","LEGA","FI","AVS"].forEach(p=>{const o=document.createElement("option");o.value="party:"+p;o.textContent=p;sel.appendChild(o);});
-    sel.onchange=()=>renderParliament(sel.value);
-  }
-  renderParliament(sel.value||"party:FDI");
-}
-async function renderParliament(party){
-  const r=await j("/parliament?party="+party).catch(()=>({votes:[]}));
-  const t=r.tally||{};
-  document.getElementById("coh-tally").innerHTML= (r.n?
-    `<b style="color:${col(party)}">${r.party}</b> — su <b>${r.n}</b> voti finali reali:
-     <span style="color:#7ee29a">favorevole ${t.favorevole||0}</span> ·
-     <span style="color:#e2785b">contrario ${t.contrario||0}</span> ·
-     <span class="muted">astenuto ${t.astenuto||0}</span>`
-    : "<span class='muted'>voti non ancora caricati (scripts/load_parliament_votes.py)</span>");
-  const sc=s=>s==="favorevole"?"#7ee29a":s==="contrario"?"#e2785b":"#8a97a8";
-  document.getElementById("coh-list").innerHTML=(r.votes||[]).map(v=>
-    `<div class="row" style="gap:8px;font-size:12px;margin:2px 0;border-bottom:1px solid #141b24;padding-bottom:3px">
-      <div style="width:74px" class="muted">${v.date}</div>
-      <div style="width:84px;color:${sc(v.stance)};font-weight:700">${v.stance||'—'}</div>
-      <div style="flex:1">${v.title}</div>
-      <div class="muted" style="width:64px;text-align:right">${v.approved?'approvata':'respinta'}</div></div>`).join("");
+  const r=await j("/parliament/discipline").catch(()=>null);
+  const ov=document.getElementById("coh-overall");
+  if(!r||!r.parties){ov.innerHTML="<span class='muted'>voti non ancora caricati</span>";document.getElementById("coh-list").innerHTML="";return;}
+  const chip=(lbl,val,sub)=>`<div class="card" style="padding:10px 16px"><div class="muted" style="font-size:11px">${lbl}</div><div style="font-size:22px;font-weight:700">${val}</div><div class="muted" style="font-size:11px">${sub||''}</div></div>`;
+  ov.innerHTML=chip("Voti finali",r.n_votes,"legislatura 19")+
+    chip("Voti larghi",r.wide_consensus,`bipartisan (${Math.round(100*r.wide_consensus/r.n_votes)}% del totale)`)+
+    chip("Compattezza media",Math.round(r.parties.reduce((a,p)=>a+(p.discipline||0),0)/r.parties.length)+"%","disciplina di blocco");
+  // raggruppa per blocco
+  const blocs={}; r.parties.forEach(p=>{(blocs[p.bloc]=blocs[p.bloc]||[]).push(p);});
+  document.getElementById("coh-list").innerHTML=Object.entries(blocs).map(([b,ps])=>
+    `<h4 style="margin:14px 0 6px">${b}</h4>`+ps.map(p=>{
+      const c=col("party:"+p.party);
+      const bar=`<div style="flex:1;background:#0c1016;border-radius:6px;height:16px;position:relative">
+        <div style="position:absolute;left:0;top:0;height:16px;border-radius:6px;width:${p.discipline||0}%;background:${c}99"></div></div>`;
+      const det=p.n_breaks?`<details style="margin:2px 0 8px 56px"><summary class="hint" style="cursor:pointer">${p.n_breaks} rotture — votò col blocco opposto</summary>
+        ${p.breaks.map(v=>`<div style="font-size:11px;margin:3px 0;border-left:2px solid ${c};padding-left:7px"><span class="muted">${v.date}</span> <b style="color:${v.stance==='favorevole'?'#7ee29a':'#e2785b'}">${v.stance}</b> · ${v.title}</div>`).join("")}</details>`:'';
+      return `<div style="margin:4px 0"><div class="row" style="align-items:center;gap:10px;font-size:13px">
+        <div style="width:54px;font-weight:600;color:${c}">${p.party}</div>${bar}
+        <div style="width:150px;text-align:right">disciplina <b>${p.discipline}%</b> · <span style="color:${p.n_breaks?'#e0b35a':'#7a8699'}">${p.n_breaks} rotture</span></div></div>${det}</div>`;
+    }).join("")).join("");
 }
 
 /* ---------- track record ---------- */

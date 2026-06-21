@@ -580,6 +580,60 @@ def swings_route():
     return jsonify(swings())
 
 
+@api.get("/parliament/discipline")
+def parliament_discipline():
+    """Cosa mostrano DAVVERO i voti finali della Camera (leg. 19): quanto ogni
+    partito vota compatto col proprio blocco e le RARE rotture. Niente 'coerenza'
+    parole-vs-fatti (i voti finali non la misurano), solo disciplina di voto reale."""
+    db = get_db()
+    GOV = ["party:FDI", "party:FI", "party:LEGA"]
+    OPP = ["party:PD", "party:M5S", "party:AVS"]
+    bloc = {p: "Maggioranza" for p in GOV}
+    bloc.update({p: "Opposizione" for p in OPP})
+
+    def majority(stances, members):
+        fav = sum(1 for p in members if stances.get(p) == "favorevole")
+        con = sum(1 for p in members if stances.get(p) == "contrario")
+        if fav == 0 and con == 0:
+            return None
+        return "favorevole" if fav > con else "contrario" if con > fav else None
+
+    stats = {p: {"party": p.replace("party:", ""), "bloc": bloc[p],
+                 "n": 0, "aligned": 0, "breaks": []} for p in bloc}
+    wide = 0
+    total = 0
+    for x in db["parliament_votes"].find({"leg": 19}, {"date": 1, "title": 1, "by_party": 1, "approved": 1}):
+        st = {p: d.get("stance") for p, d in x.get("by_party", {}).items()
+              if d.get("stance") in ("favorevole", "contrario")}
+        if not st:
+            continue
+        total += 1
+        gm, om = majority(st, GOV), majority(st, OPP)
+        if gm and om and gm == om:
+            wide += 1
+        for p in bloc:
+            if p not in st:
+                continue
+            bm = gm if bloc[p] == "Maggioranza" else om
+            if not bm:
+                continue
+            stats[p]["n"] += 1
+            if st[p] == bm:
+                stats[p]["aligned"] += 1
+            else:
+                stats[p]["breaks"].append({"date": x.get("date"), "title": x.get("title"),
+                                           "stance": st[p], "approved": x.get("approved")})
+    out = []
+    for p in bloc:
+        s = stats[p]
+        s["discipline"] = round(100 * s["aligned"] / s["n"], 1) if s["n"] else None
+        s["n_breaks"] = len(s["breaks"])
+        s["breaks"] = s["breaks"][:20]
+        out.append(s)
+    out.sort(key=lambda r: (r["bloc"], -(r["discipline"] or 0)))
+    return jsonify({"leg": 19, "n_votes": total, "wide_consensus": wide, "parties": out})
+
+
 @api.get("/parliament")
 def parliament():
     """Voti finali REALI della Camera (dati aperti) per un partito, per legislatura.
