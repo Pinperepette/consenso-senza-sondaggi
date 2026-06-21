@@ -397,9 +397,21 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
 
 /* ---------- previsioni: sondaggi vs corretta coi voti reali ---------- */
 async function loadPrevisioni(){
+  const adj=document.getElementById("fc-adj"); if(!adj)return;
   const f=await j("/forecast").catch(()=>null);
-  if(!f||f.error){document.getElementById("fc-poll").innerHTML="<span class='muted'>non disponibile</span>";return;}
-  const ps=f.parties.slice().sort((a,b)=>b.model-a.model);
+  if(!f||f.error){adj.innerHTML="<span class='muted'>non disponibile</span>";return;}
+  let parties=f.parties;
+  if(SCEN){
+    // sotto scenario: base = stima dello scenario, stessa correzione coi voti reali
+    const sm=Object.fromEntries(SCEN.scenario.map(p=>[p.name,p.mean*100]));
+    parties=f.parties.map(p=>{
+      const model=sm[p.party]!=null?sm[p.party]:p.model;
+      const a=p.signal==null?0:Math.max(-f.cap,Math.min(f.cap,-p.signal*f.damping));
+      return {party:p.party,model:+model.toFixed(1),signal:p.signal,
+              adjustment:+a.toFixed(1),adjusted:+(model+a).toFixed(1)};
+    });
+  }
+  const ps=parties.slice().sort((a,b)=>b.model-a.model);
   const max=Math.max(...ps.flatMap(p=>[p.model,p.adjusted]),35);
   const bar=(name,val,extra)=>`<div class="row" style="align-items:center;gap:8px;margin:5px 0">
     <div class="pname" style="width:54px;color:${col('party:'+name)}">${name}</div>
@@ -902,7 +914,7 @@ async function recalcScenario(){
     body:JSON.stringify({spec:SPEC,as_of:NC?NC.as_of:null})}).then(r=>r.json());
   renderScenario(res);
 }
-function refreshAll(){renderBars();renderKpi();paint("map");paint("minimap");renderIdentikit();renderPartyRegions();
+function refreshAll(){renderBars();renderKpi();paint("map");paint("minimap");renderIdentikit();renderPartyRegions();loadPrevisioni();
   setTimeout(()=>{Object.values(maps).forEach(m=>m&&m.invalidateSize());if(cmap)cmap.invalidateSize();},90);}
 function computeNpReg(){
   SCEN.newPartyName=null;SCEN.npReg=null;
