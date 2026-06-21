@@ -385,6 +385,30 @@ def _coal_arg():
     return None, request.args.get("as_of")
 
 
+@api.get("/settings/ai")
+def settings_ai_get():
+    """Stato della chiave AI (non restituisce mai la chiave)."""
+    from consenso.ai.deepseek import key_source, available
+    src = key_source()
+    return jsonify({"configured": bool(src), "source": src, "available": available()})
+
+
+@api.post("/settings/ai")
+def settings_ai_set():
+    """Salva la chiave AI nel DB (solo se non già in env/file)."""
+    from consenso.ai.deepseek import set_api_key, key_source, available
+    b = request.get_json(force=True, silent=True) or {}
+    key = (b.get("key") or "").strip()
+    src = key_source()
+    if src in ("env", "file"):
+        return jsonify({"error": f"chiave già configurata via {src}"}), 400
+    if not key:
+        set_api_key("")
+        return jsonify({"configured": False, "source": None, "available": False})
+    set_api_key(key)
+    return jsonify({"configured": True, "source": "db", "available": available()})
+
+
 @api.get("/forecast")
 def forecast_route():
     """Previsione: stima dei sondaggi vs stima corretta coi voti reali recenti."""

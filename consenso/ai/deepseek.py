@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-from functools import lru_cache
 from typing import Optional
 
 import httpx
@@ -19,11 +18,43 @@ BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 
 
-@lru_cache(maxsize=1)
+def _key_from_db() -> Optional[str]:
+    """Chiave salvata dall'interfaccia (rotellina). Mai loggata."""
+    try:
+        from consenso.db.client import get_db
+        d = get_db()["model_config"].find_one({"_id": "ai_key"})
+        v = (d or {}).get("value")
+        return v.strip() if v else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def key_source() -> Optional[str]:
+    """Da dove arriva la chiave: 'env' | 'file' | 'db' | None (per la UI)."""
+    if (os.environ.get("DEEPSEEK_API_KEY") or "").strip():
+        return "env"
+    try:
+        if open(KEY_PATH, encoding="utf-8").read().strip():
+            return "file"
+    except OSError:
+        pass
+    return "db" if _key_from_db() else None
+
+
+def set_api_key(key: str) -> None:
+    """Salva la chiave nel DB (usata se non c'è in env/file)."""
+    from consenso.db.client import get_db
+    get_db()["model_config"].update_one(
+        {"_id": "ai_key"}, {"$set": {"value": (key or "").strip()}}, upsert=True)
+
+
 def _api_key() -> str:
     env = os.environ.get("DEEPSEEK_API_KEY")
     if env and env.strip():            # comodo per Docker: chiave via variabile
         return env.strip()
+    dbk = _key_from_db()               # salvata dalla rotellina
+    if dbk:
+        return dbk
     with open(KEY_PATH, encoding="utf-8") as fh:   # default: file locale, mai nel codice
         return fh.read().strip()
 

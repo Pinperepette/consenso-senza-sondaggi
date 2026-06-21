@@ -135,6 +135,25 @@
   </div>
   <button id="syncbtn" style="background:#15281c;color:#7ee29a;border:1px solid #1f5132">🔄 Aggancia dati</button>
   <span class="badge" id="syncbadge">sync: —</span>
+  <button id="settingsbtn" title="Impostazioni" style="background:#16202b;color:#aab;padding:7px 11px">⚙️</button>
+</div>
+
+<div id="settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:900;align-items:center;justify-content:center">
+  <div class="card" style="width:480px;max-width:92vw">
+    <div style="display:flex;align-items:center;margin-bottom:6px">
+      <h3 style="margin:0">⚙️ Impostazioni</h3>
+      <button id="settings-close" style="margin-left:auto;background:#16202b;color:#aab;padding:5px 10px">✕</button>
+    </div>
+    <h4 style="margin:14px 0 4px">🤖 Chiave AI (DeepSeek)</h4>
+    <div class="hint" id="settings-ai-status">…</div>
+    <div id="settings-ai-form">
+      <input id="settings-ai-key" type="password" placeholder="sk-…" style="width:100%;box-sizing:border-box;margin:6px 0">
+      <div class="save-row"><button id="settings-ai-save">💾 Salva chiave</button>
+        <button id="settings-ai-clear" style="background:#3a2017;color:#e08a5a;border:1px solid #5a3320">Rimuovi</button>
+        <span class="badge" id="settings-ai-msg"></span></div>
+    </div>
+    <div class="note" style="margin-top:12px">La chiave abilita Scenari AI, confondenti ed estrazione da link. È salvata nel database locale e non viene mai mostrata. Se è già impostata via variabile d'ambiente o file, non serve inserirla qui.</div>
+  </div>
 </div>
 
 <nav class="tabs" id="tabs">
@@ -1083,6 +1102,30 @@ async function ensureCmap(){
   L.geoJSON(geojson,{style:()=>({color:"#2c3744",weight:1,fillColor:"#10161d",fillOpacity:1})}).addTo(cmap);
   cmarkers=L.layerGroup().addTo(cmap);
 }
+/* ---------- impostazioni / chiave AI ---------- */
+async function openSettings(){
+  document.getElementById("settings-modal").style.display="flex";
+  const s=await j("/settings/ai").catch(()=>({}));
+  const st=document.getElementById("settings-ai-status"), form=document.getElementById("settings-ai-form");
+  if(s.source==="env"||s.source==="file"){
+    st.innerHTML=`✓ chiave già configurata via <b>${s.source}</b> — non serve inserirla qui.`;
+    form.style.display="none";
+  }else{
+    form.style.display="";
+    st.innerHTML=s.configured?"✓ chiave salvata nel database <span class='muted'>(inseriscine una nuova per sostituirla)</span>":"⚠️ nessuna chiave: le funzioni AI sono disattivate.";
+  }
+  document.getElementById("settings-ai-key").value="";
+  document.getElementById("settings-ai-msg").textContent="";
+}
+async function saveAiKey(clear){
+  const msg=document.getElementById("settings-ai-msg");
+  const key=clear?"":document.getElementById("settings-ai-key").value.trim();
+  if(!clear&&!key){msg.textContent="inserisci una chiave";return;}
+  const r=await fetch("/settings/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key})}).then(r=>r.json()).catch(()=>({error:"rete"}));
+  if(r.error){msg.textContent="⚠️ "+r.error;return;}
+  msg.textContent=clear?"✓ rimossa":(r.available?"✓ salvata e attiva":"✓ salvata");
+  openSettings();
+}
 async function loadComunali(){
   if(!cmap)return;
   // default a 'all' anche se i selettori non sono ancora popolati (init in corso)
@@ -1350,6 +1393,12 @@ async function init(){
   document.getElementById("go").onclick=()=>loadNowcast(document.getElementById("asof").value);
   document.getElementById("syncbtn").onclick=startSync;
   loadSyncStatus();
+  // impostazioni (rotellina)
+  document.getElementById("settingsbtn").onclick=openSettings;
+  document.getElementById("settings-close").onclick=()=>document.getElementById("settings-modal").style.display="none";
+  document.getElementById("settings-modal").onclick=(e)=>{if(e.target.id==="settings-modal")e.target.style.display="none";};
+  document.getElementById("settings-ai-save").onclick=saveAiKey;
+  document.getElementById("settings-ai-clear").onclick=()=>saveAiKey(true);
   document.getElementById("scen-gen").onclick=genScenario;
   document.getElementById("scen-news").onclick=genFromNews;
   document.getElementById("feed-add").onclick=addFeed; loadFeeds();
