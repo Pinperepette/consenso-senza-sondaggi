@@ -365,6 +365,13 @@ def _coal_arg():
     return None, request.args.get("as_of")
 
 
+@api.get("/swings")
+def swings_route():
+    """Sondaggi vs Urne: swing reale nei comuni vs swing dei sondaggi."""
+    from consenso.model.swings import swings
+    return jsonify(swings())
+
+
 @api.get("/parliament")
 def parliament():
     """Voti finali REALI della Camera (dati aperti) per un partito, per legislatura.

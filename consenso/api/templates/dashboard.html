@@ -125,6 +125,7 @@
   <button data-tab="confronto">⚖️ Confronto</button>
   <button data-tab="track">🎯 Track record</button>
   <button data-tab="coerenza">📜 Coerenza</button>
+  <button data-tab="urnevssondaggi">📊 Urne vs Sondaggi</button>
 </nav>
 <div id="scenbanner" style="display:none;background:#231a10;border-bottom:1px solid #4a3a1a;
   color:#e0b35a;padding:8px 22px;font-size:13px;flex-shrink:0">
@@ -329,6 +330,17 @@
     </div>
   </section>
 
+  <section class="tab" id="tab-urnevssondaggi">
+    <div class="card">
+      <h3>📊 Urne vs Sondaggi <span class="muted">— quanto i sondaggi divergono dai voti reali</span></h3>
+      <div class="hint" id="uvs-src"></div>
+      <div id="uvs-summary" style="margin:10px 0"></div>
+      <div id="uvs-bars"></div>
+      <details style="margin-top:10px"><summary class="hint" style="cursor:pointer">dettaglio per comune</summary><div id="uvs-cities" style="margin-top:8px;max-height:360px;overflow:auto"></div></details>
+    </div>
+    <div class="note" style="margin-top:14px">⚠️ Le comunali <b>non</b> sono il dato nazionale (le liste civiche drenano voti a tutti): si legge la <b>direzione</b> e la magnitudine <b>relativa</b> dello swing, non un numero nazionale. FI e M5S sono i <b>controlli</b>: se loro tornano e Lega/FdI no, la divergenza è un bias specifico dei sondaggi.</div>
+  </section>
+
   <p class="muted" style="font-size:12px;margin-top:14px;flex-shrink:0">
     Fonti reali: Ministero dell'Interno/Eligendo (8 elezioni nazionali 2008-2024 + 13 regionali, 7.800 comuni) ·
     reddito MEF · confini ISTAT. Nessun sondaggio. Le correlazioni sono a livello di comune (ecologiche), non individuali.
@@ -374,7 +386,41 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==="seggi"){loadSeggi();}
   if(b.dataset.tab==="track"){loadTrack();}
   if(b.dataset.tab==="coerenza"){loadCoherence();}
+  if(b.dataset.tab==="urnevssondaggi"){loadUrneVsSondaggi();}
 });
+
+/* ---------- urne vs sondaggi ---------- */
+async function loadUrneVsSondaggi(){
+  const s=await j("/swings").catch(()=>null);
+  if(!s){return;}
+  document.getElementById("uvs-src").textContent=s.source+" — "+s.n_cities+" comuni";
+  const sign=x=>(x>=0?"+":"")+x.toFixed(1);
+  const big=s.parties.filter(p=>!p.control&&Math.abs(p.discrepancy)>=5);
+  document.getElementById("uvs-summary").innerHTML=
+    "<b>L'elefante:</b> i controlli <b>FI</b> ("+sign(s.parties.find(p=>p.party=='FI').discrepancy)+
+    ") e <b>M5S</b> ("+sign(s.parties.find(p=>p.party=='M5S').discrepancy)+
+    ") tornano; ma "+big.map(p=>`<b style="color:${col('party:'+p.party)}">${p.party}</b> diverge di <b>${sign(p.discrepancy)} punti</b>`).join(" e ")+
+    " tra urne e sondaggi.";
+  // barre: per partito, swing reale vs swing sondaggio
+  const max=Math.max(...s.parties.flatMap(p=>[Math.abs(p.real_swing),Math.abs(p.poll_swing)]),5);
+  const barr=(v,c)=>`<div style="flex:1;background:#0c1016;border-radius:5px;height:16px;position:relative">
+    <div style="position:absolute;left:50%;top:0;height:16px;border-radius:5px;background:${c};
+    ${v>=0?`width:${v/max*50}%`:`width:${-v/max*50}%;transform:translateX(-100%)`}"></div></div>`;
+  document.getElementById("uvs-bars").innerHTML=s.parties.map(p=>`
+    <div style="margin:8px 0">
+      <div style="font-size:13px;margin-bottom:2px"><b style="color:${col('party:'+p.party)}">${p.party}</b>
+        ${p.control?'<span class="muted" style="font-size:11px">(controllo)</span>':''}
+        <span style="float:right" class="muted">discrepanza <b style="color:${Math.abs(p.discrepancy)>=5?'#e2785b':'#7ee29a'}">${sign(p.discrepancy)}</b></span></div>
+      <div style="display:flex;gap:8px;align-items:center;font-size:12px"><span style="width:70px">urne</span>${barr(p.real_swing,'#5aa9e6')}<span style="width:42px;text-align:right">${sign(p.real_swing)}</span></div>
+      <div style="display:flex;gap:8px;align-items:center;font-size:12px"><span style="width:70px">sondaggi</span>${barr(p.poll_swing,'#a463f2')}<span style="width:42px;text-align:right">${sign(p.poll_swing)}</span></div>
+    </div>`).join("");
+  // per comune
+  const cc=document.getElementById("uvs-cities");
+  cc.innerHTML='<div class="row muted" style="font-size:11px;font-weight:700"><div style="width:120px">comune</div>'+
+    s.parties.map(p=>`<div style="width:120px;text-align:center">${p.party} (20→26)</div>`).join("")+'</div>'+
+    s.cities.map(ct=>`<div class="row" style="font-size:11px;border-bottom:1px solid #141b24"><div style="width:120px">${ct.city}</div>`+
+      s.parties.map(p=>{const d=ct[p.party];return `<div style="width:120px;text-align:center">${d.y20}→${d.y26} <b style="color:${d.d>=0?'#7ee29a':'#e2785b'}">${sign(d.d)}</b></div>`}).join("")+`</div>`).join("");
+}
 
 /* ---------- fatti vs parole: voti reali in Parlamento ---------- */
 async function loadCoherence(){
