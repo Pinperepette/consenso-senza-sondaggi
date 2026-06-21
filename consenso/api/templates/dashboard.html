@@ -124,6 +124,7 @@
   <button data-tab="scenari">🧪 Scenari AI</button>
   <button data-tab="confronto">⚖️ Confronto</button>
   <button data-tab="track">🎯 Track record</button>
+  <button data-tab="coerenza">📜 Coerenza</button>
 </nav>
 <div id="scenbanner" style="display:none;background:#231a10;border-bottom:1px solid #4a3a1a;
   color:#e0b35a;padding:8px 22px;font-size:13px;flex-shrink:0">
@@ -318,6 +319,14 @@
     <div class="note" style="margin-top:14px">⚠️ "Dentro IC" = il risultato reale cadeva nell'intervallo credibile 95% della previsione. Errore medio basso + buona copertura = stime oneste.</div>
   </section>
 
+  <section class="tab" id="tab-coerenza">
+    <div class="card">
+      <h3>📜 Coerenza <span class="muted">— tra le parole (programmi) e i fatti (voti in Parlamento)</span></h3>
+      <div class="note" style="margin:8px 0">⚠️ <b>Ricostruzione AI, da verificare sulle fonti ufficiali</b> (Camera/Senato). I voti citati possono contenere errori: è un layer <b>interpretativo</b>, non un dato certificato. La versione rigorosa userà il database dei voti parlamentari.</div>
+      <div id="coh-list"></div>
+    </div>
+  </section>
+
   <p class="muted" style="font-size:12px;margin-top:14px;flex-shrink:0">
     Fonti reali: Ministero dell'Interno/Eligendo (8 elezioni nazionali 2008-2024 + 13 regionali, 7.800 comuni) ·
     reddito MEF · confini ISTAT. Nessun sondaggio. Le correlazioni sono a livello di comune (ecologiche), non individuali.
@@ -362,7 +371,34 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==="dimensioni"){loadDimensioni();}
   if(b.dataset.tab==="seggi"){loadSeggi();}
   if(b.dataset.tab==="track"){loadTrack();}
+  if(b.dataset.tab==="coerenza"){loadCoherence();}
 });
+
+/* ---------- coerenza fatti/parole ---------- */
+async function loadCoherence(){
+  const r=await j("/coherence").catch(()=>({parties:[]}));
+  const el=document.getElementById("coh-list");
+  if(!r.parties||!r.parties.length){el.innerHTML="<span class='muted'>non ancora generata (consenso.ai.coherence.generate_all)</span>";return;}
+  const cc=v=>v==null?"#7a8699":(v>=7?"#7ee29a":v>=5?"#f4c430":"#e2785b");
+  el.innerHTML=r.parties.map(p=>{
+    const issues=(p.by_issue||[]).map(x=>{
+      const cit=(x.citations||[]).map(c=>`<span class="muted">${(c.law||'').slice(0,40)} (${c.year||'?'}, ${c.vote||'?'})</span>`).join(" · ");
+      return `<div style="margin:6px 0">
+        <div style="display:flex;gap:8px;align-items:center">
+          <b style="width:140px;font-size:13px">${x.issue}</b>
+          <span style="color:${cc(x.coherence)};font-weight:700">${x.coherence==null?'n/d':x.coherence+'/10'}</span>
+          <span class="muted" style="font-size:11px">conf. ${x.confidence||'?'}</span></div>
+        <div style="font-size:12px;margin-left:6px"><b>dice:</b> ${x.stated||'—'}<br><b>fa:</b> ${x.action||'—'}</div>
+        ${cit?`<div style="font-size:11px;margin-left:6px">${cit}</div>`:''}</div>`;}).join("");
+    const trend=(p.by_period||[]).map(t=>`<span class="house-chip">${t.period}: <b style="color:${cc(t.coherence)}">${t.coherence==null?'n/d':t.coherence}</b></span>`).join(" ");
+    return `<div style="margin:14px 0;border-top:1px solid #1c2530;padding-top:10px">
+      <div style="display:flex;gap:10px;align-items:center">
+        <h4 style="margin:0;color:${col(p.party_id)}">${p.name}</h4>
+        <span style="color:${cc(p.overall)};font-weight:800">${p.overall==null?'n/d':p.overall+'/10'}</span>
+        <span class="muted" style="font-size:12px">${p.summary||''}</span></div>
+      <div style="margin-top:6px"><span class="muted" style="font-size:12px">andamento negli anni:</span> ${trend||'<span class=muted>n/d</span>'}</div>
+      ${issues}</div>`;}).join("");
+}
 
 /* ---------- track record ---------- */
 async function loadTrack(){

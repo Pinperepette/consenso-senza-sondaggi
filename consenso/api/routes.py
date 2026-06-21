@@ -365,6 +365,16 @@ def _coal_arg():
     return None, request.args.get("as_of")
 
 
+@api.get("/coherence")
+def coherence():
+    """Coerenza fatti/parole per partito (ricostruzione AI da verificare)."""
+    from consenso.model.dimensions import PARTY_NAMES
+    order = list(PARTY_NAMES)
+    recs = list(get_db()["coherence"].find({}, {"_id": 0}))
+    recs.sort(key=lambda r: order.index(r["party_id"]) if r["party_id"] in order else 99)
+    return jsonify({"parties": recs})
+
+
 @api.get("/trackrecord")
 def trackrecord():
     """Storico onesto: previsione del modello (allenato sul prima) vs risultato reale,

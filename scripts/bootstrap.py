@@ -60,6 +60,8 @@ def main() -> int:
         if available():
             from consenso.model.dimensions import PARTY_NAMES, generate_all
             print(f">> dimensioni: {generate_all(list(PARTY_NAMES))} partiti", flush=True)
+            from consenso.ai.coherence import generate_all as gen_coh
+            print(f">> coerenza fatti/parole: {gen_coh()} partiti", flush=True)
         else:
             print(">> dimensioni: saltate (nessuna chiave AI)", flush=True)
     except Exception as exc:  # noqa: BLE001
