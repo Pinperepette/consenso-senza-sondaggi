@@ -40,10 +40,46 @@ SOURCE = ("Paniere di 15 comuni · comunali 2020 vs 2026 (risultati reali, voto 
           "omogeneo) · swing sondaggi: La7")
 
 
+def _real_2020() -> dict:
+    """% 2020 calcolate dai NOSTRI dati (comunali storiche in DB), per citta'."""
+    import re
+    from consenso.db.client import get_db
+    db = get_db()
+    elections = ["elez:2020-09-20_comunali", "elez:2020-10-25_comunali"]
+    out = {}
+    for city in BASKET:
+        for e in elections:
+            rows = list(db["party_results"].find(
+                {"election_id": e, "geo_id": {"$regex": f":{re.escape(city.upper())}$"}},
+                {"party_id": 1, "votes": 1}))
+            if not rows:
+                continue
+            tot = sum(r["votes"] for r in rows)
+            if tot <= 0:
+                break
+            pct = {}
+            for r in rows:
+                pid = (r.get("party_id") or "").replace("party:", "")
+                if pid in PARTY_ORDER:
+                    pct[pid] = pct.get(pid, 0.0) + r["votes"] / tot * 100
+            out[city] = pct
+            break
+    return out
+
+
 def swings() -> dict:
+    try:
+        real20 = _real_2020()
+    except Exception:  # noqa: BLE001
+        real20 = {}
+    computed = sum(1 for c in real20 if real20.get(c))
+
+    def y20(city, p):
+        return round(real20.get(city, {}).get(p, BASKET[city][p][0]), 1)
+
     out = []
     for p in PARTY_ORDER:
-        deltas = [v[p][1] - v[p][0] for v in BASKET.values() if p in v]
+        deltas = [v[p][1] - y20(c, p) for c, v in BASKET.items() if p in v]
         real = sum(deltas) / len(deltas)
         p20, p26 = POLL_LA7[p]
         poll = p26 - p20
@@ -51,9 +87,13 @@ def swings() -> dict:
                     "poll_swing": round(poll, 1),
                     "discrepancy": round(poll - real, 1),   # quanto il sondaggio si muove PIU' della realta'
                     "control": p in CONTROL})
-    cities = [{"city": c, **{p: {"y20": v[p][0], "y26": v[p][1],
-                                 "d": round(v[p][1] - v[p][0], 1)} for p in PARTY_ORDER if p in v}}
+    cities = [{"city": c, "src20": "dati" if real20.get(c) else "articolo",
+               **{p: {"y20": y20(c, p), "y26": v[p][1], "d": round(v[p][1] - y20(c, p), 1)}
+                  for p in PARTY_ORDER if p in v}}
               for c, v in BASKET.items()]
-    return {"source": SOURCE, "n_cities": len(BASKET), "parties": out,
+    src = SOURCE + (f" · 2020 calcolato dai nostri dati per {computed}/{len(BASKET)} comuni"
+                    if computed else "")
+    return {"source": src, "n_cities": len(BASKET), "computed_2020": computed,
+            "parties": out,
             "poll_la7": {p: {"y20": POLL_LA7[p][0], "y26": POLL_LA7[p][1]} for p in PARTY_ORDER},
             "cities": cities}
