@@ -154,8 +154,13 @@
     </div>
     <div class="card" style="margin-top:14px">
       <h3>🔮 Corretta coi voti reali <span class="muted">— recenti</span></h3>
-      <div class="hint">la Stima nazionale qui sopra aggiustata con la divergenza urne-vs-sondaggi (smorzata, max ±4 pt); ▲/▼ = scarto dai sondaggi. <b>Ipotesi</b>: che il segnale locale valga anche sul nazionale.</div>
+      <div class="hint">la Stima nazionale qui sopra aggiustata con la divergenza urne-vs-sondaggi (smorzata, max ±4 pt); ▲/▼ = scarto dai sondaggi.</div>
+      <div id="fc-validity" style="margin:8px 0"></div>
       <div id="fc-adj"></div>
+      <details style="margin-top:10px" id="fc-conf-det">
+        <summary class="hint" style="cursor:pointer">🤖 Possibili motivi per cui potrebbe non valere <span class="muted">(AI, lato input — non tocca i numeri)</span></summary>
+        <div id="fc-confounders" style="margin-top:8px"><span class="muted">apri per generare…</span></div>
+      </details>
     </div>
     <div class="note" style="margin-top:14px">⚠️ La colonna "corretta" è una <b>lettura alternativa</b>, non un numero certo: le comunali non sono il dato nazionale, l'aggiustamento è limitato e l'incertezza resta alta. Serve a mostrare <b>dove</b> i sondaggi potrebbero sbagliare (Lega sottostimata, FdI sovrastimata), non a sostituire la stima.</div>
   </section>
@@ -424,6 +429,25 @@ async function loadPrevisioni(){
     const d=Math.abs(dv)<0.05?'':` <span style="color:${dv>0?'#7ee29a':'#e2785b'};font-size:11px">${dv>0?'▲':'▼'}${Math.abs(dv).toFixed(1)}</span>`;
     return bar(p.party,p.adjusted,d);
   }).join("");
+  // badge di validità (dai controlli FI/M5S)
+  const v=f.validity, vb=document.getElementById("fc-validity");
+  if(v&&vb){const ok=v.controls_ok;
+    vb.innerHTML=`<span style="display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;background:${ok?'#15281c':'#2e2410'};color:${ok?'#7ee29a':'#e0b35a'};border:1px solid ${ok?'#1f5132':'#5a4a1a'}">${ok?'✓ supportata dai controlli':'⚠ correzione debole'}</span> <span class="muted" style="font-size:12px">${v.note}</span>`;}
+  // confondenti AI: caricamento lazy all'apertura
+  const det=document.getElementById("fc-conf-det");
+  if(det&&!det.dataset.wired){det.dataset.wired="1";
+    det.addEventListener("toggle",()=>{if(det.open)loadConfounders();});}
+}
+async function loadConfounders(){
+  const el=document.getElementById("fc-confounders");
+  el.innerHTML="<span class='muted'>🤖 AI in corso…</span>";
+  const r=await j("/forecast/confounders").catch(()=>({error:"errore di rete"}));
+  if(r.error){el.innerHTML="<span class='muted'>"+r.error+"</span>";return;}
+  const items=r.confounders||[];
+  el.innerHTML=(r.verdict?`<div style="font-size:12px;margin-bottom:6px"><b>Sintesi AI:</b> ${r.verdict}</div>`:'')+
+    (items.length?items.map(c=>`<div style="font-size:12px;margin:5px 0;border-left:2px solid #5a4a1a;padding-left:8px">
+      <b>${c.factor||''}</b>${c.affects?` <span class="muted">(${c.affects})</span>`:''}: ${c.note||''}</div>`).join("")
+    :"<span class='muted'>nessun confondente segnalato</span>");
 }
 
 /* ---------- urne vs sondaggi ---------- */

@@ -393,6 +393,17 @@ def forecast_route():
     return jsonify(res), (404 if "error" in res else 200)
 
 
+@api.get("/forecast/confounders")
+def forecast_confounders():
+    """Strato AI (input-side): confondenti che indeboliscono la correzione locale->nazionale."""
+    from consenso.model.forecast import forecast_adjusted
+    from consenso.ai.confounders import confounders
+    fc = forecast_adjusted(request.args.get("as_of"))
+    if "error" in fc:
+        return jsonify(fc), 404
+    return jsonify(confounders(fc))
+
+
 @api.get("/swings")
 def swings_route():
     """Sondaggi vs Urne: swing reale nei comuni vs swing dei sondaggi."""
