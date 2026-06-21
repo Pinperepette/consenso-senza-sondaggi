@@ -365,6 +365,28 @@ def _coal_arg():
     return None, request.args.get("as_of")
 
 
+@api.get("/parliament")
+def parliament():
+    """Voti finali REALI della Camera (dati aperti) per un partito, per legislatura.
+    Fatti contati, non ricostruzione AI."""
+    party = request.args.get("party")
+    if not party:
+        return jsonify({"error": "param 'party' richiesto"}), 400
+    q = {f"by_party.{party}": {"$exists": True}, "title": {"$ne": "Voto finale"}}
+    rows = list(get_db()["parliament_votes"].find(
+        q, {"date": 1, "leg": 1, "title": 1, "approved": 1, "by_party": 1}
+    ).sort("date", -1))
+    votes, tally = [], {"favorevole": 0, "contrario": 0, "astenuto": 0}
+    for r in rows:
+        st = r["by_party"].get(party, {}).get("stance")
+        if st in tally:
+            tally[st] += 1
+        votes.append({"date": r["date"], "leg": r["leg"], "title": r["title"],
+                      "approved": r["approved"], "stance": st})
+    return jsonify({"party": party.replace("party:", ""), "tally": tally,
+                    "n": len(votes), "votes": votes[:80]})
+
+
 @api.get("/coherence")
 def coherence():
     """Coerenza fatti/parole per partito (ricostruzione AI da verificare)."""

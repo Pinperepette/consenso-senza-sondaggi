@@ -321,9 +321,11 @@
 
   <section class="tab" id="tab-coerenza">
     <div class="card">
-      <h3>📜 Coerenza <span class="muted">— tra le parole (programmi) e i fatti (voti in Parlamento)</span></h3>
-      <div class="note" style="margin:8px 0">⚠️ <b>Ricostruzione AI, da verificare sulle fonti ufficiali</b> (Camera/Senato). I voti citati possono contenere errori: è un layer <b>interpretativo</b>, non un dato certificato. La versione rigorosa userà il database dei voti parlamentari.</div>
-      <div id="coh-list"></div>
+      <h3>📜 Fatti vs parole <span class="muted">— il voto reale in Parlamento</span></h3>
+      <div class="hint">FATTI: come ogni partito ha votato sui <b>voti finali reali</b> della Camera (dati aperti, leg. 18-19). Confrontalo con cosa <b>dichiara</b> (scheda Dimensioni). Dati contati, non ricostruzione AI. Layer separato dal consenso.</div>
+      <label class="ctrl" style="margin:8px 0;display:block">Partito <select id="coh-party"></select></label>
+      <div id="coh-tally" style="margin:8px 0"></div>
+      <div id="coh-list" style="max-height:520px;overflow:auto"></div>
     </div>
   </section>
 
@@ -374,30 +376,31 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==="coerenza"){loadCoherence();}
 });
 
-/* ---------- coerenza fatti/parole ---------- */
+/* ---------- fatti vs parole: voti reali in Parlamento ---------- */
 async function loadCoherence(){
-  const r=await j("/coherence").catch(()=>({parties:[]}));
-  const el=document.getElementById("coh-list");
-  if(!r.parties||!r.parties.length){el.innerHTML="<span class='muted'>non ancora generata (consenso.ai.coherence.generate_all)</span>";return;}
-  const cc=v=>v==null?"#7a8699":(v>=7?"#7ee29a":v>=5?"#f4c430":"#e2785b");
-  el.innerHTML=r.parties.map(p=>{
-    const issues=(p.by_issue||[]).map(x=>{
-      const cit=(x.citations||[]).map(c=>`<span class="muted">${(c.law||'').slice(0,40)} (${c.year||'?'}, ${c.vote||'?'})</span>`).join(" · ");
-      return `<div style="margin:6px 0">
-        <div style="display:flex;gap:8px;align-items:center">
-          <b style="width:140px;font-size:13px">${x.issue}</b>
-          <span style="color:${cc(x.coherence)};font-weight:700">${x.coherence==null?'n/d':x.coherence+'/10'}</span>
-          <span class="muted" style="font-size:11px">conf. ${x.confidence||'?'}</span></div>
-        <div style="font-size:12px;margin-left:6px"><b>dice:</b> ${x.stated||'—'}<br><b>fa:</b> ${x.action||'—'}</div>
-        ${cit?`<div style="font-size:11px;margin-left:6px">${cit}</div>`:''}</div>`;}).join("");
-    const trend=(p.by_period||[]).map(t=>`<span class="house-chip">${t.period}: <b style="color:${cc(t.coherence)}">${t.coherence==null?'n/d':t.coherence}</b></span>`).join(" ");
-    return `<div style="margin:14px 0;border-top:1px solid #1c2530;padding-top:10px">
-      <div style="display:flex;gap:10px;align-items:center">
-        <h4 style="margin:0;color:${col(p.party_id)}">${p.name}</h4>
-        <span style="color:${cc(p.overall)};font-weight:800">${p.overall==null?'n/d':p.overall+'/10'}</span>
-        <span class="muted" style="font-size:12px">${p.summary||''}</span></div>
-      <div style="margin-top:6px"><span class="muted" style="font-size:12px">andamento negli anni:</span> ${trend||'<span class=muted>n/d</span>'}</div>
-      ${issues}</div>`;}).join("");
+  const sel=document.getElementById("coh-party");
+  if(!sel.options.length){
+    ["FDI","PD","M5S","LEGA","FI","AVS"].forEach(p=>{const o=document.createElement("option");o.value="party:"+p;o.textContent=p;sel.appendChild(o);});
+    sel.onchange=()=>renderParliament(sel.value);
+  }
+  renderParliament(sel.value||"party:FDI");
+}
+async function renderParliament(party){
+  const r=await j("/parliament?party="+party).catch(()=>({votes:[]}));
+  const t=r.tally||{};
+  document.getElementById("coh-tally").innerHTML= (r.n?
+    `<b style="color:${col(party)}">${r.party}</b> — su <b>${r.n}</b> voti finali reali:
+     <span style="color:#7ee29a">favorevole ${t.favorevole||0}</span> ·
+     <span style="color:#e2785b">contrario ${t.contrario||0}</span> ·
+     <span class="muted">astenuto ${t.astenuto||0}</span>`
+    : "<span class='muted'>voti non ancora caricati (scripts/load_parliament_votes.py)</span>");
+  const sc=s=>s==="favorevole"?"#7ee29a":s==="contrario"?"#e2785b":"#8a97a8";
+  document.getElementById("coh-list").innerHTML=(r.votes||[]).map(v=>
+    `<div class="row" style="gap:8px;font-size:12px;margin:2px 0;border-bottom:1px solid #141b24;padding-bottom:3px">
+      <div style="width:74px" class="muted">${v.date}</div>
+      <div style="width:84px;color:${sc(v.stance)};font-weight:700">${v.stance||'—'}</div>
+      <div style="flex:1">${v.title}</div>
+      <div class="muted" style="width:64px;text-align:right">${v.approved?'approvata':'respinta'}</div></div>`).join("");
 }
 
 /* ---------- track record ---------- */

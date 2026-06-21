@@ -31,6 +31,7 @@ def main() -> int:
     sh("scripts/load_opendata.py")                 # politiche 2022 + europee 2024
     sh("scripts/load_regionali_2025.py", optional=True)
     sh("scripts/load_comunali_catalogo.py", optional=True)   # scheda Comunali
+    sh("scripts/load_parliament_votes.py", optional=True)    # voti reali Camera (fatti vs parole)
     sh("scripts/load_polls.py")                    # sondaggi storici + live
     # fondamentali: economia (World Bank) per il costo del governare
     try:
@@ -60,8 +61,6 @@ def main() -> int:
         if available():
             from consenso.model.dimensions import PARTY_NAMES, generate_all
             print(f">> dimensioni: {generate_all(list(PARTY_NAMES))} partiti", flush=True)
-            from consenso.ai.coherence import generate_all as gen_coh
-            print(f">> coerenza fatti/parole: {gen_coh()} partiti", flush=True)
         else:
             print(">> dimensioni: saltate (nessuna chiave AI)", flush=True)
     except Exception as exc:  # noqa: BLE001
