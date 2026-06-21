@@ -1337,11 +1337,14 @@ async function genFromNews(){
 function renderAssumptions(){
   const el=document.getElementById("scen-assumptions");if(!SPEC){el.innerHTML="";return;}
   let h="<div class='muted' style='margin:14px 0 6px;font-size:12px'>Assunzioni (modificabili, in punti %):</div>";
+  const dest=t=>!t?'':(typeof t==='string'?t.replace('party:',''):Object.entries(t).map(([k,v])=>k.replace('party:','')+' '+Math.round(v*100)+'%').join('+'));
   (SPEC.deltas||[]).forEach((d,i)=>{
+    const to=d.to?`<span style="font-size:11px;color:#7ee29a">→ ${dest(d.to)}</span>`:'';
     h+=`<div class="row"><div class="pname" style="color:${col(d.party)}">${d.party.replace('party:','')}</div>
       <input type="number" step="0.5" value="${d.mean}" data-i="${i}" class="dlt"
-        style="width:74px;background:#0c1016;color:#fff;border:1px solid var(--line);border-radius:6px;padding:4px">
-      <span class="muted" style="font-size:11px;flex:1">${d.source_quote?('“'+d.source_quote.slice(0,90)+'”'):(d.rationale||'').slice(0,90)}</span></div>`;
+        style="width:64px;background:#0c1016;color:#fff;border:1px solid var(--line);border-radius:6px;padding:4px">
+      ${to}
+      <span class="muted" style="font-size:11px;flex:1">${d.source_quote?('“'+d.source_quote.slice(0,80)+'”'):(d.rationale||'').slice(0,80)}</span></div>`;
   });
   const n=SPEC.new_party;
   if(n&&n.name){

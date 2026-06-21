@@ -25,7 +25,11 @@ def apply_scenario(parties: List[str], base: np.ndarray, spec: Dict):
     out = base.copy()
     rng = np.random.default_rng(0)
 
-    # --- shock additivi per partito (in punti percentuali) ---
+    # --- shock per partito (in punti percentuali) ---
+    # Se 'to' e' specificato e il delta e' negativo, e' un TRASFERIMENTO esplicito: il
+    # partito perde i punti e la destinazione (un altro partito, 'astensione' o un mix)
+    # li riceve. Cosi' la magnitudine e' rispettata e la destinazione e' realistica,
+    # invece di spalmare i voti su tutti via rinormalizzazione.
     for d in spec.get("deltas", []):
         pid = d.get("party")
         if pid not in names:
@@ -34,7 +38,18 @@ def apply_scenario(parties: List[str], base: np.ndarray, spec: Dict):
         mean = float(d.get("mean", 0)) / 100.0
         sd = _sd_from_range(d.get("mean", 0), d.get("low"), d.get("high")) / 100.0
         shock = rng.normal(mean, sd, S) if sd > 0 else np.full(S, mean)
-        out[:, i] = np.clip(out[:, i] + shock, 0.0, None)
+        to = d.get("to")
+        if to and mean < 0:
+            loss = np.minimum(-shock, out[:, i])          # non puo' perdere piu' di quanto ha
+            out[:, i] = out[:, i] - loss
+            dests = to if isinstance(to, dict) else {to: 1.0}
+            tot = sum(v for k, v in dests.items() if k != "astensione") or 1.0
+            for dst, frac in dests.items():
+                if dst == "astensione" or dst not in names:   # astensione: voti che spariscono (la renorm fa salire gli altri)
+                    continue
+                out[:, names.index(dst)] += loss * (frac / tot)
+        else:
+            out[:, i] = np.clip(out[:, i] + shock, 0.0, None)
 
     # --- nuovo partito che pesca dai donatori ---
     nps = spec.get("new_party")

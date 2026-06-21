@@ -28,6 +28,9 @@ Regole tassative:
   Se l'articolo non giustifica uno spostamento, NON inventarlo.
 - Usa SOLO questi identificativi di partito: party:FDI, party:PD, party:M5S,
   party:LEGA, party:FI, party:AVS, party:ALTRI.
+- Per ogni spostamento NEGATIVO indica DOVE vanno i voti col campo 'to': un altro
+  partito (es. "party:FN"), "astensione" (l'elettore non vota), o un mix
+  {"party:FN":0.6,"astensione":0.4}. I voti non si spostano nel vuoto: di' dove vanno.
 - Per un partito NUOVO (mai votato) usa 'new_party' con name e draws_from
   (da quali partiti/astensione pesca, frazioni che sommano ~1).
 - Se non hai elementi, restituisci liste vuote. Non inventare.
@@ -36,7 +39,7 @@ Rispondi SOLO con JSON valido in questo schema:
 {
  "summary": "sintesi in 1-2 frasi di cosa dicono gli articoli",
  "deltas": [
-   {"party":"party:FDI","mean":-2.0,"low":-4.0,"high":-0.5,
+   {"party":"party:FDI","mean":-2.0,"low":-4.0,"high":-0.5,"to":"party:FN",
     "confidence":"bassa|media|alta","rationale":"perche'","source_quote":"frase dall'articolo"}
  ],
  "new_party": null
