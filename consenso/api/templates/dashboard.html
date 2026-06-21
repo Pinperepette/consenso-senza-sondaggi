@@ -126,6 +126,7 @@
   <button data-tab="track">🎯 Track record</button>
   <button data-tab="coerenza">📜 Coerenza</button>
   <button data-tab="urnevssondaggi">📊 Urne vs Sondaggi</button>
+  <button data-tab="dati">✍️ Dati</button>
 </nav>
 <div id="scenbanner" style="display:none;background:#231a10;border-bottom:1px solid #4a3a1a;
   color:#e0b35a;padding:8px 22px;font-size:13px;flex-shrink:0">
@@ -352,6 +353,45 @@
     <div class="note" style="margin-top:14px">⚠️ Le comunali <b>non</b> sono il dato nazionale (le liste civiche drenano voti a tutti): si legge la <b>direzione</b> e la magnitudine <b>relativa</b> dello swing, non un numero nazionale. FI e M5S sono i <b>controlli</b>: se loro tornano e Lega/FdI no, la divergenza è un bias specifico dei sondaggi.</div>
   </section>
 
+  <section class="tab" id="tab-dati">
+    <div class="card">
+      <h3>✍️ Inserimento dati manuale <span class="muted">— ciò che non abbiamo (sondaggi, risultati)</span></h3>
+      <div class="hint">I dati manuali sono marcati e <b>rimovibili</b>. Puoi incollare un <b>link</b> e far estrarre i numeri all'AI (da <b>rivedere</b> prima di salvare — l'AI può sbagliare).</div>
+      <div style="margin:12px 0;padding:10px;background:#10161d;border-radius:8px">
+        <b>🤖 Estrai da link</b><br>
+        <input id="dt-url" placeholder="https://… (pagina con sondaggio o risultato)" style="width:48%">
+        <select id="dt-kind"><option value="poll">sondaggio</option><option value="result">risultato</option></select>
+        <button id="dt-extract">Estrai</button>
+        <span class="badge" id="dt-status">—</span>
+      </div>
+      <div class="grid g2">
+        <div>
+          <h4>📊 Sondaggio</h4>
+          <label class="ctrl">data <input id="dt-p-date" type="date"></label>
+          <label class="ctrl">istituto <input id="dt-p-pollster" placeholder="es. SWG"></label>
+          <div id="dt-p-shares" style="margin:8px 0"></div>
+          <button id="dt-p-save">💾 Salva sondaggio</button>
+          <span class="badge" id="dt-p-status"></span>
+        </div>
+        <div>
+          <h4>🗳 Risultato elezione</h4>
+          <label class="ctrl">data <input id="dt-r-date" type="date"></label>
+          <label class="ctrl">tipo <select id="dt-r-type"><option>comunali</option><option>regionali</option><option>politiche</option></select></label>
+          <label class="ctrl">regione <input id="dt-r-region" placeholder="es. VENETO" style="width:120px"></label>
+          <label class="ctrl">comune <input id="dt-r-comune" placeholder="opzionale" style="width:120px"></label>
+          <div id="dt-r-shares" style="margin:8px 0"></div>
+          <button id="dt-r-save">💾 Salva risultato</button>
+          <span class="badge" id="dt-r-status"></span>
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <button id="dt-rm-polls" style="background:#3a2017;color:#e08a5a;border:1px solid #5a3320">🗑 Rimuovi sondaggi manuali</button>
+        <button id="dt-rm-res" style="background:#3a2017;color:#e08a5a;border:1px solid #5a3320">🗑 Rimuovi risultati manuali</button>
+      </div>
+    </div>
+    <div class="note" style="margin-top:14px">⚠️ I dati manuali entrano nei calcoli (sondaggi → segnale/forecast; risultati → motore di swing). Restano marcati "manuale" e si rimuovono coi pulsanti qui sopra. L'estrazione AI è solo lato input: rivedi sempre i numeri.</div>
+  </section>
+
   <p class="muted" style="font-size:12px;margin-top:14px;flex-shrink:0">
     Fonti reali: Ministero dell'Interno/Eligendo (8 elezioni nazionali 2008-2024 + 13 regionali, 7.800 comuni) ·
     reddito MEF · confini ISTAT. Nessun sondaggio. Le correlazioni sono a livello di comune (ecologiche), non individuali.
@@ -398,7 +438,54 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==="track"){loadTrack();}
   if(b.dataset.tab==="coerenza"){loadCoherence();}
   if(b.dataset.tab==="urnevssondaggi"){loadUrneVsSondaggi();}
+  if(b.dataset.tab==="dati"){initDati();}
 });
+
+/* ---------- inserimento dati manuale + estrazione AI ---------- */
+let DATI_INIT=false;
+const DT_PARTIES=["FDI","PD","M5S","LEGA","FI","AVS","FN"];
+function dtBuild(id){document.getElementById(id).innerHTML=DT_PARTIES.map(p=>`<label style="display:inline-block;margin:2px 8px 2px 0;font-size:12px">${p} <input data-sp="${p}" type="number" step="0.1" style="width:56px"></label>`).join("");}
+function dtGather(id){const o={};document.querySelectorAll('#'+id+' input[data-sp]').forEach(i=>{if(i.value!=='')o[i.dataset.sp]=parseFloat(i.value);});return o;}
+function dtSet(id,sh){document.querySelectorAll('#'+id+' input[data-sp]').forEach(i=>{i.value=(sh&&sh[i.dataset.sp]!=null)?sh[i.dataset.sp]:'';});}
+function initDati(){
+  if(DATI_INIT)return;DATI_INIT=true;
+  dtBuild("dt-p-shares");dtBuild("dt-r-shares");
+  document.getElementById("dt-extract").onclick=dtExtract;
+  document.getElementById("dt-p-save").onclick=dtSavePoll;
+  document.getElementById("dt-r-save").onclick=dtSaveResult;
+  document.getElementById("dt-rm-polls").onclick=()=>dtRemove("polls","dt-p-status");
+  document.getElementById("dt-rm-res").onclick=()=>dtRemove("results","dt-r-status");
+}
+async function dtPost(url,body){return fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(r=>r.json());}
+async function dtExtract(){
+  const st=document.getElementById("dt-status");st.textContent="🤖 AI in corso…";
+  const r=await dtPost("/data/extract",{url:document.getElementById("dt-url").value,kind:document.getElementById("dt-kind").value}).catch(()=>({error:"rete"}));
+  if(r.error){st.textContent="⚠️ "+r.error;return;}
+  st.textContent="✓ estratto — rivedi e salva";
+  if(document.getElementById("dt-kind").value==="poll"){
+    if(r.date)document.getElementById("dt-p-date").value=r.date;
+    if(r.pollster)document.getElementById("dt-p-pollster").value=r.pollster;dtSet("dt-p-shares",r.shares);
+  }else{
+    if(r.date)document.getElementById("dt-r-date").value=r.date;
+    if(r.type)document.getElementById("dt-r-type").value=r.type;
+    if(r.region)document.getElementById("dt-r-region").value=r.region;
+    if(r.comune)document.getElementById("dt-r-comune").value=r.comune;dtSet("dt-r-shares",r.shares);
+  }
+}
+async function dtSavePoll(){
+  const st=document.getElementById("dt-p-status");
+  const r=await dtPost("/data/poll",{date:document.getElementById("dt-p-date").value,pollster:document.getElementById("dt-p-pollster").value,shares:dtGather("dt-p-shares")});
+  st.textContent=r.error?("⚠️ "+r.error):("✓ "+r.inserted+" quote salvate");
+}
+async function dtSaveResult(){
+  const st=document.getElementById("dt-r-status");
+  const r=await dtPost("/data/result",{date:document.getElementById("dt-r-date").value,type:document.getElementById("dt-r-type").value,region:document.getElementById("dt-r-region").value,comune:document.getElementById("dt-r-comune").value,shares:dtGather("dt-r-shares")});
+  st.textContent=r.error?("⚠️ "+r.error):("✓ "+r.geo_id+" ("+r.inserted+")");
+}
+async function dtRemove(kind,stid){
+  const r=await dtPost("/data/remove",{kind});
+  document.getElementById(stid).textContent="✓ "+JSON.stringify(r);
+}
 
 /* ---------- previsioni: sondaggi vs corretta coi voti reali ---------- */
 async function loadPrevisioni(){

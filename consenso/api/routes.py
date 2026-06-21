@@ -393,6 +393,38 @@ def forecast_route():
     return jsonify(res), (404 if "error" in res else 200)
 
 
+@api.post("/data/poll")
+def data_poll():
+    b = request.get_json(force=True, silent=True) or {}
+    from consenso.ingest_manual import add_poll
+    r = add_poll(b.get("date", ""), b.get("pollster", ""), b.get("shares") or {})
+    return jsonify(r), (400 if "error" in r else 200)
+
+
+@api.post("/data/result")
+def data_result():
+    b = request.get_json(force=True, silent=True) or {}
+    from consenso.ingest_manual import add_result
+    r = add_result(b.get("date", ""), b.get("type", "comunali"), b.get("shares") or {},
+                   region=b.get("region"), comune=b.get("comune"))
+    return jsonify(r), (400 if "error" in r else 200)
+
+
+@api.post("/data/extract")
+def data_extract():
+    b = request.get_json(force=True, silent=True) or {}
+    from consenso.ingest_manual import extract_from_url
+    r = extract_from_url(b.get("url", ""), b.get("kind", "poll"))
+    return jsonify(r), (502 if "error" in r else 200)
+
+
+@api.post("/data/remove")
+def data_remove():
+    b = request.get_json(force=True, silent=True) or {}
+    from consenso.ingest_manual import remove_manual
+    return jsonify(remove_manual(b.get("kind", "polls")))
+
+
 @api.get("/swing/signal")
 def swing_signal_route():
     """Motore di swing generale: swing reale vs sondaggi per una elezione target."""
