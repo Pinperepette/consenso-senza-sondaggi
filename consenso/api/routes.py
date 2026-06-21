@@ -538,14 +538,6 @@ def swing_signal_route():
     return jsonify(res), (404 if "error" in res else 200)
 
 
-@api.get("/trackrecord/correction")
-def trackrecord_correction():
-    """Backtest della correzione coi voti reali: aiuta o no?"""
-    from consenso.model.forecast import correction_track
-    res = correction_track()
-    return jsonify(res), (404 if "error" in res else 200)
-
-
 @api.get("/forecast/confounders")
 def forecast_confounders():
     """Strato AI (input-side): confondenti che indeboliscono la correzione locale->nazionale."""

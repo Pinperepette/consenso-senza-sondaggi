@@ -354,14 +354,6 @@
       <div id="track-overall" style="margin:10px 0"></div>
       <div id="track-list"></div>
     </div>
-
-    <div class="card" style="margin-top:16px">
-      <h3>🔬 La correzione coi voti reali aiuta? <span class="muted">— backtest onesto</span></h3>
-      <div class="hint">Per ogni elezione passata confronto l'errore della previsione <b>grezza</b> (sondaggi) con la versione <b>corretta</b> col segnale locale (urne-vs-sondaggi) noto <b>prima</b> del voto. Test del metodo "alla Borghi".</div>
-      <div id="track-corr-kpi" class="kpi" style="margin:10px 0"></div>
-      <div id="track-corr-verdict" class="note"></div>
-      <div id="track-corr-list" style="margin-top:10px"></div>
-    </div>
     <div class="note" style="margin-top:14px">⚠️ "Dentro IC" = il risultato reale cadeva nell'intervallo credibile 95% della previsione. Errore medio basso + buona copertura = stime oneste.</div>
   </section>
 
@@ -805,29 +797,6 @@ async function loadTrack(){
         <span class="tr-badge" style="background:#16202b;color:${inci===ps.length?'#7ee29a':'#f4c430'}">${inci}/${ps.length} dentro IC</span>
       </div>${rows}
       <div class="muted" style="font-size:10px;margin-top:6px">● reale · │ previsione · banda = IC95</div></div>`;}).join("");
-  loadTrackCorrection();
-}
-async function loadTrackCorrection(){
-  const r=await j("/trackrecord/correction").catch(()=>null);
-  const kpi=document.getElementById("track-corr-kpi");
-  if(!r||r.error){kpi.innerHTML="<span class='muted'>non disponibile</span>";document.getElementById("track-corr-verdict").innerHTML="";document.getElementById("track-corr-list").innerHTML="";return;}
-  const chip=(lbl,val,c)=>`<div class="card" style="padding:10px 16px"><div class="muted" style="font-size:11px">${lbl}</div><div style="font-size:22px;font-weight:700;color:${c||'#fff'}">${val} pt</div></div>`;
-  kpi.innerHTML=chip("MAE grezza (sondaggi)",r.mae_raw)+
-    chip("MAE corretta sempre",r.mae_always,r.mae_always<=r.mae_raw?'#7ee29a':'#e2785b')+
-    chip("MAE corretta solo se valida",r.mae_corrected,r.mae_corrected<=r.mae_raw?'#7ee29a':'#e2785b');
-  document.getElementById("track-corr-verdict").innerHTML=
-    "<b>"+(r.helps?"✓ Col gate di validità la correzione regge":"⚠ La correzione va applicata con disciplina")+".</b> "+
-    "Applicarla <b>sempre</b> peggiora ("+r.mae_always+" vs "+r.mae_raw+"); applicarla <b>solo quando i controlli tornano</b> dà "+r.mae_corrected+
-    " — per questo il sistema corregge il presente solo se il segnale è validato.";
-  document.getElementById("track-corr-list").innerHTML=(r.elections||[]).map(e=>{
-    const nm=e.type==="politiche"?"Politiche":"Europee";
-    const big=e.parties.filter(p=>Math.abs(p.adj)>0.1);
-    const tag=e.valid?'<span class="tr-badge" style="background:#15281c;color:#7ee29a">segnale valido → corretto</span>':'<span class="tr-badge" style="background:#2e2410;color:#e0b35a">non valido → non corretto</span>';
-    const rows=big.length?big.map(p=>{
-      const better=p.cor_err<p.raw_err;
-      return `<div class="tr-row"><div class="tr-name" style="color:${col('party:'+p.party)}">${p.party}</div>
-        <div class="tr-val" style="width:auto;text-align:left"><span class="muted">reale</span> <b>${p.actual}</b> · grezza ${p.raw} (err ${p.raw_err}) → corretta ${p.corrected} <span style="color:${better?'#7ee29a':'#e2785b'}">(err ${p.cor_err})</span></div></div>`;}).join(""):'<div class="muted" style="font-size:12px">nessuna correzione applicata</div>';
-    return `<div class="tr-el"><div class="tr-head"><h4>${nm} <span style="color:var(--accent)">${e.date.slice(0,4)}</span></h4>${tag}</div>${rows}</div>`;}).join("");
 }
 
 /* ---------- coalizioni & seggi ---------- */

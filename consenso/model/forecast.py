@@ -18,60 +18,6 @@ DAMP = 0.35      # quanto del segnale locale si trasferisce al nazionale (pruden
 CAP = 4.0        # correzione massima in punti, in valore assoluto
 
 
-def correction_track() -> dict:
-    """Backtest ONESTO della correzione coi voti reali: per ogni elezione nazionale
-    passata, confronta l'errore della previsione GREZZA (sondaggi) con quella CORRETTA
-    usando il segnale di swing dell'ultima elezione locale nota PRIMA del cutoff.
-    Dice se la correzione 'alla Borghi' aiuta davvero, o no."""
-    from consenso.db.client import get_db
-    from consenso.model.swing_engine import swing_signal
-    db = get_db()
-    recs = list(db["track_record"].find({}, {"_id": 0}))
-    if not recs:
-        return {"error": "track record non costruito"}
-    recs.sort(key=lambda r: r["date"])
-    locals_ = [{"id": e["_id"], "date": e["date"]} for e in db["elections"].find(
-        {"type": {"$in": ["comunali", "regionali"]}}, {"date": 1}).sort("date", 1)]
-
-    out, raw_errs, always_errs, gated_errs = [], [], [], []
-    for r in recs:
-        cutoff = r["cutoff"]
-        prev = [e for e in locals_ if e["date"] < cutoff]
-        sig = None
-        for e in reversed(prev):                       # piu' recente prima del cutoff
-            s = swing_signal(e["id"], before=cutoff)
-            if "error" not in s and s.get("n_units", 0) >= 30:
-                sig = s
-                break
-        valid = bool(sig and sig.get("valid"))
-        disc = ({p["party"]: p["discrepancy"] for p in sig["parties"]
-                 if p["discrepancy"] is not None} if sig else {})
-        parties = []
-        for p in r["parties"]:
-            raw = p["pred"] * 100
-            d = disc.get(p["party"])
-            adj = max(-CAP, min(CAP, -(d or 0.0) * DAMP)) if d is not None else 0.0
-            cor = raw + (adj if valid else 0.0)        # applica solo se il segnale e' valido
-            actual = p["actual"] * 100
-            raw_errs.append(abs(raw - actual))
-            always_errs.append(abs(raw + adj - actual))
-            gated_errs.append(abs(cor - actual))
-            parties.append({"party": p["party"], "actual": round(actual, 1),
-                            "raw": round(raw, 1), "corrected": round(cor, 1),
-                            "adj": round(adj if valid else 0.0, 1),
-                            "raw_err": round(abs(raw - actual), 1),
-                            "cor_err": round(abs(cor - actual), 1)})
-        out.append({"date": r["date"], "type": r["type"], "cutoff": cutoff,
-                    "valid": valid, "signal_from": (sig["target"] if sig else None),
-                    "parties": parties})
-    m = lambda x: round(sum(x) / len(x), 2) if x else 0
-    mae_raw, mae_always, mae_gated = m(raw_errs), m(always_errs), m(gated_errs)
-    return {"elections": out, "n_elections": len(out),
-            "mae_raw": mae_raw, "mae_always": mae_always, "mae_corrected": mae_gated,
-            "improvement": round(mae_raw - mae_gated, 2),
-            "helps": mae_gated < mae_raw}
-
-
 CONTROL_TOL = 2.5    # soglia: sopra questo scarto i controlli non "tornano" piu'
 
 
