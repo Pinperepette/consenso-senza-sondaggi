@@ -393,6 +393,17 @@ def forecast_route():
     return jsonify(res), (404 if "error" in res else 200)
 
 
+@api.get("/swing/signal")
+def swing_signal_route():
+    """Motore di swing generale: swing reale vs sondaggi per una elezione target."""
+    eid = request.args.get("election")
+    if not eid:
+        return jsonify({"error": "param 'election' richiesto"}), 400
+    from consenso.model.swing_engine import swing_signal
+    res = swing_signal(eid)
+    return jsonify(res), (404 if "error" in res else 200)
+
+
 @api.get("/forecast/confounders")
 def forecast_confounders():
     """Strato AI (input-side): confondenti che indeboliscono la correzione locale->nazionale."""
