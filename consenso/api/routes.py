@@ -356,19 +356,32 @@ def remove_feed():
     return jsonify({"feeds": feeds_list()})
 
 
-@api.get("/coalitions")
+def _coal_arg():
+    """Composizione coalizioni: dal body POST se presente, altrimenti i default."""
+    if request.method == "POST":
+        body = request.get_json(force=True, silent=True) or {}
+        c = body.get("coalitions")
+        return (c or None), body.get("as_of")
+    return None, request.args.get("as_of")
+
+
+@api.route("/coalitions", methods=["GET", "POST"])
 def coalitions():
-    """Quote delle coalizioni (somma membri) con IC95 propagato."""
+    """Quote delle coalizioni (somma membri) con IC95 propagato. Composizione
+    modificabile via POST {coalitions:{nome:[party_id...]}}."""
     from consenso.model.coalitions import coalition_shares
-    res = coalition_shares(request.args.get("as_of"))
+    coal, as_of = _coal_arg()
+    res = coalition_shares(as_of, coalitions=coal)
     return jsonify(res), (404 if "error" in res else 200)
 
 
-@api.get("/seats")
+@api.route("/seats", methods=["GET", "POST"])
 def seats():
-    """Proiezione semplificata dei seggi (Camera) con IC95 propagato."""
+    """Proiezione semplificata dei seggi (Camera) con IC95 propagato.
+    Composizione coalizioni modificabile via POST."""
     from consenso.model.coalitions import seat_projection
-    res = seat_projection(request.args.get("as_of"))
+    coal, as_of = _coal_arg()
+    res = seat_projection(as_of, coalitions=coal)
     return jsonify(res), (404 if "error" in res else 200)
 
 

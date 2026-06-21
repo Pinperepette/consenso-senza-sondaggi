@@ -276,8 +276,9 @@
   <section class="tab" id="tab-seggi">
     <div class="grid g2">
       <div class="card">
-        <h3>Coalizioni <span class="muted">(somma dei partiti)</span></h3>
-        <div class="hint">quota di ogni blocco con intervallo 95% e probabilità di arrivare primo. Le alleanze sono ipotesi (il "Campo largo" non è un fatto).</div>
+        <h3>Coalizioni <span class="muted">(modificabili)</span></h3>
+        <div class="hint">trascina i partiti dentro/fuori: ✕ toglie, <b style="color:#7ee29a">+</b> aggiunge. Es. FN/Vannacci oggi <b>non</b> è nel centrodestra. Le alleanze sono ipotesi.</div>
+        <div id="coal-editor" style="margin:8px 0 12px"></div>
         <div id="coal-list"></div>
       </div>
       <div class="card">
@@ -352,27 +353,58 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
 });
 
 /* ---------- coalizioni & seggi ---------- */
+let COALDEF=null, ALLP=[];
+const ccol=n=>n==="Centrodestra"?"#2f6fb3":(n==="Campo largo"?"#e2362d":"#7a8699");
 async function loadSeggi(){
-  const [c,s]=await Promise.all([j("/coalitions").catch(()=>({})),j("/seats").catch(()=>({}))]);
-  const ccol=n=>n==="Centrodestra"?"#2f6fb3":(n==="Campo largo"?"#e2362d":"#7a8699");
+  if(!COALDEF){
+    const def=await j("/coalitions").catch(()=>({coalitions:[]}));
+    COALDEF={}; (def.coalitions||[]).forEach(c=>COALDEF[c.name]=c.members.map(m=>"party:"+m));
+    if(!Object.keys(COALDEF).length) COALDEF={"Centrodestra":["party:FDI","party:LEGA","party:FI"],"Campo largo":["party:PD","party:M5S","party:AVS"]};
+    const s0=await j("/seats").catch(()=>({parties:[]}));
+    ALLP=(s0.parties||[]).map(p=>"party:"+p.party);
+  }
+  await applyCoal();
+}
+function renderCoalEditor(){
+  const el=document.getElementById("coal-editor"); if(!el)return;
+  const assigned=new Set(Object.values(COALDEF).flat());
+  const unassigned=ALLP.filter(p=>!assigned.has(p));
+  let h="";
+  for(const name of Object.keys(COALDEF)){
+    h+=`<div style="margin:5px 0"><span style="display:inline-block;width:100px;font-size:13px;color:${ccol(name)}"><b>${name}</b></span>`;
+    h+=(COALDEF[name].length?COALDEF[name]:["—"]).map(p=>p==="—"?"<span class='muted'>(vuota)</span>":
+      `<span class="house-chip" style="margin:2px"><i style="background:${col(p)}"></i>${p.replace('party:','')} <b class="up" style="cursor:pointer" data-rm="${name}|${p}">✕</b></span>`).join(" ");
+    h+=`</div>`;
+  }
+  if(unassigned.length){
+    h+=`<div style="margin-top:6px"><span class="muted" style="font-size:12px;width:100px;display:inline-block">non assegnati</span>`;
+    h+=unassigned.map(p=>`<span class="house-chip" style="margin:2px"><i style="background:${col(p)}"></i>${p.replace('party:','')} `+
+      Object.keys(COALDEF).map(c=>`<b style="cursor:pointer;color:#7ee29a" data-add="${c}|${p}" title="aggiungi a ${c}">+${c.split(' ')[0].slice(0,3)}</b>`).join(" ")+`</span>`).join(" ");
+    h+=`</div>`;
+  }
+  el.innerHTML=h;
+  el.querySelectorAll("b[data-rm]").forEach(b=>b.onclick=()=>{const[n,p]=b.dataset.rm.split("|");COALDEF[n]=COALDEF[n].filter(x=>x!==p);applyCoal();});
+  el.querySelectorAll("b[data-add]").forEach(b=>b.onclick=()=>{const[n,p]=b.dataset.add.split("|");if(!COALDEF[n].includes(p))COALDEF[n].push(p);applyCoal();});
+}
+async function applyCoal(){
+  renderCoalEditor();
+  const body=JSON.stringify({coalitions:COALDEF, as_of:NC?NC.as_of:null});
+  const opt={method:"POST",headers:{"Content-Type":"application/json"},body};
+  const [c,s]=await Promise.all([fetch("/coalitions",opt).then(r=>r.json()),fetch("/seats",opt).then(r=>r.json())]);
   const bar=(label,mean,lo,hi,maxv,extra)=>`<div class="row" style="align-items:center;gap:8px;margin:4px 0">
-    <div style="width:110px;font-size:13px">${label}</div>
+    <div style="width:100px;font-size:13px">${label}</div>
     <div style="flex:1;background:#0c1016;border-radius:6px;height:18px;position:relative">
       <div style="position:absolute;left:0;top:0;height:18px;border-radius:6px;width:${Math.min(100,mean/maxv*100)}%;background:${ccol(label)}99"></div></div>
     <div style="width:120px;text-align:right;font-size:12px"><b>${mean}</b> <span class="muted">[${lo}-${hi}]</span> ${extra||""}</div></div>`;
-  // coalizioni (quote %)
   const cl=document.getElementById("coal-list");
-  if(c.coalitions){const mx=Math.max(...c.coalitions.map(x=>x.ci95[1]*100));
+  if(c.coalitions){const mx=Math.max(...c.coalitions.map(x=>x.ci95[1]*100),1);
     cl.innerHTML=c.coalitions.map(x=>bar(x.name,(x.mean*100).toFixed(1)+"%",(x.ci95[0]*100).toFixed(0),(x.ci95[1]*100).toFixed(0),mx,
-      `<span class="muted">1°:${Math.round((x.p_first||0)*100)}%</span>`)).join("")
-      +c.coalitions.map(x=>`<div class="muted" style="font-size:11px;margin-left:110px">${x.name}: ${x.members.join(", ")}</div>`).join("");}
-  // seggi coalizioni
+      `<span class="muted">1°:${Math.round((x.p_first||0)*100)}%</span>`)).join("");}
   const sc=document.getElementById("seats-coal");
   if(s.coalitions){const mx=s.majority*1.3;
     sc.innerHTML=`<div class="muted" style="font-size:12px;margin-bottom:4px">maggioranza a ${s.majority}</div>`+
       s.coalitions.map(x=>bar(x.name,Math.round(x.mean),x.ci95[0],x.ci95[1],mx,
       `<span class="muted">magg:${Math.round((x.p_majority||0)*100)}%</span>`)).join("");}
-  // seggi partiti
   const sp=document.getElementById("seats-party");
   if(s.parties){sp.innerHTML="<div class='muted' style='font-size:12px;margin-bottom:4px'>per partito</div>"+
     s.parties.map(x=>`<div class="row" style="gap:8px;font-size:13px;margin:2px 0"><div class="pname" style="width:60px;color:${col('party:'+x.party)}">${x.party}</div><b>${Math.round(x.mean)}</b> <span class="muted">[${x.ci95[0]}-${x.ci95[1]}]</span></div>`).join("");}
