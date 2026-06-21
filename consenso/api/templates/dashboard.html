@@ -403,7 +403,7 @@
       <div style="position:relative;height:280px"><canvas id="tl-chart"></canvas></div>
       <div id="tl-events" style="margin-top:14px"></div>
     </div>
-    <div class="note" style="margin-top:14px">⚠️ Eventi <b>datati e verificabili</b> (con fonte). Il legame fatto→consenso è una <b>lettura cronologica</b>, non una prova di causa-effetto: il consenso si muove per molte ragioni insieme. Il trend è dato reale; gli eventi sono curati a mano.</div>
+    <div class="note" style="margin-top:14px">⚠️ Il <b>trend è dato reale</b> (sondaggi+elezioni). Gli eventi sono <b>fatti datati con fonte</b>: curati a mano, oppure <b>📖 estratti da Wikipedia</b> dall'AI (il fatto è quello della voce; controlla data/categoria col link). Il legame fatto→consenso è una <b>lettura cronologica</b>, non una prova di causa-effetto.</div>
   </section>
 
   <section class="tab" id="tab-urnevssondaggi">
@@ -584,7 +584,7 @@ async function discoverEvents(){
   try{
     const r=await fetch("/timeline/discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({party:p})}).then(r=>r.json());
     if(r.error){st.textContent="⚠️ "+r.error;}
-    else{st.textContent=`✓ ${r.found} eventi trovati per ${p} (vedi sotto, badge "da verificare")`; await renderTimeline(p);}
+    else{st.textContent=`✓ ${r.found} eventi estratti da Wikipedia per ${p} (vedi sotto)`; await renderTimeline(p);}
   }catch(e){st.textContent="⚠️ errore di rete";}
   btn.disabled=false; btn.textContent=old;
 }
@@ -615,7 +615,7 @@ async function renderTimeline(party){
   // lista eventi
   document.getElementById("tl-events").innerHTML=t.events.map(e=>{
     const k=TL_KIND[e.kind]||"#aaa";
-    const ai=e.origin==="ai"?' <span class="badge" style="background:#2a2140;color:#c9b6f5">🤖 AI — da verificare</span>':'';
+    const ai=e.origin==="ai"?' <span class="badge" style="background:#1d2b3a;color:#9cc4e8">📖 da Wikipedia</span>':'';
     return `<div style="border-left:3px solid ${k};padding:6px 0 6px 10px;margin:8px 0">
       <div style="font-size:13px"><b>${e.date}</b> · <b style="color:${k}">${e.title}</b> ${e.consensus!=null?`<span class="muted">— consenso ~${e.consensus}%</span>`:''}${ai}</div>
       <div style="font-size:12px;color:#aab;margin-top:2px">${e.note||''} ${e.source?`<a href="${e.source}" target="_blank" style="color:#5aa9e6">fonte</a>`:''}</div></div>`;}).join("");
