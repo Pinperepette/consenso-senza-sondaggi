@@ -20,12 +20,12 @@ PARTY_WIKI = {
 
 SYSTEM = (
     "Sei un analista politico italiano. Dal TESTO fornito (storia di un partito) estrai "
-    "gli EVENTI piu' rilevanti per capire ascesa/declino del consenso: ingressi/uscite "
+    "gli EVENTI piu rilevanti per capire ascesa/declino del consenso: ingressi/uscite "
     "dai governi, alleanze, scissioni, cambi di linea/giravolte, voti chiave, risultati "
     "elettorali. SOLO eventi con una DATA presente o ricavabile dal testo. NON inventare "
-    "date o fatti: se la data non c'e', ometti l'evento. Rispondi SOLO JSON: "
-    '{"events":[{"date":"YYYY-MM-DD","kind":"alleanza|dietrofront|scissione|voto|picco|minimo",'
-    '"title":"breve","note":"una frase"}]} . Massimo 12 eventi, dal piu vecchio al piu recente."
+    "date o fatti: se la data manca, ometti l'evento. Rispondi SOLO JSON con questa forma: "
+    "{\"events\":[{\"date\":\"YYYY-MM-DD\",\"kind\":\"alleanza|dietrofront|scissione|voto|picco|minimo\","
+    "\"title\":\"breve\",\"note\":\"una frase\"}]} . Massimo 12 eventi, dal piu vecchio al piu recente."
 )
 
 
