@@ -33,7 +33,7 @@ def correction_track() -> dict:
     locals_ = [{"id": e["_id"], "date": e["date"]} for e in db["elections"].find(
         {"type": {"$in": ["comunali", "regionali"]}}, {"date": 1}).sort("date", 1)]
 
-    out, raw_errs, cor_errs = [], [], []
+    out, raw_errs, always_errs, gated_errs = [], [], [], []
     for r in recs:
         cutoff = r["cutoff"]
         prev = [e for e in locals_ if e["date"] < cutoff]
@@ -43,6 +43,7 @@ def correction_track() -> dict:
             if "error" not in s and s.get("n_units", 0) >= 30:
                 sig = s
                 break
+        valid = bool(sig and sig.get("valid"))
         disc = ({p["party"]: p["discrepancy"] for p in sig["parties"]
                  if p["discrepancy"] is not None} if sig else {})
         parties = []
@@ -50,24 +51,25 @@ def correction_track() -> dict:
             raw = p["pred"] * 100
             d = disc.get(p["party"])
             adj = max(-CAP, min(CAP, -(d or 0.0) * DAMP)) if d is not None else 0.0
-            cor = raw + adj
+            cor = raw + (adj if valid else 0.0)        # applica solo se il segnale e' valido
             actual = p["actual"] * 100
             raw_errs.append(abs(raw - actual))
-            cor_errs.append(abs(cor - actual))
+            always_errs.append(abs(raw + adj - actual))
+            gated_errs.append(abs(cor - actual))
             parties.append({"party": p["party"], "actual": round(actual, 1),
                             "raw": round(raw, 1), "corrected": round(cor, 1),
-                            "adj": round(adj, 1),
+                            "adj": round(adj if valid else 0.0, 1),
                             "raw_err": round(abs(raw - actual), 1),
                             "cor_err": round(abs(cor - actual), 1)})
         out.append({"date": r["date"], "type": r["type"], "cutoff": cutoff,
-                    "signal_from": (sig["target"] if sig else None),
+                    "valid": valid, "signal_from": (sig["target"] if sig else None),
                     "parties": parties})
-    mae_raw = sum(raw_errs) / len(raw_errs) if raw_errs else 0
-    mae_cor = sum(cor_errs) / len(cor_errs) if cor_errs else 0
+    m = lambda x: round(sum(x) / len(x), 2) if x else 0
+    mae_raw, mae_always, mae_gated = m(raw_errs), m(always_errs), m(gated_errs)
     return {"elections": out, "n_elections": len(out),
-            "mae_raw": round(mae_raw, 2), "mae_corrected": round(mae_cor, 2),
-            "improvement": round(mae_raw - mae_cor, 2),
-            "helps": mae_cor < mae_raw}
+            "mae_raw": mae_raw, "mae_always": mae_always, "mae_corrected": mae_gated,
+            "improvement": round(mae_raw - mae_gated, 2),
+            "helps": mae_gated < mae_raw}
 
 
 CONTROL_TOL = 2.5    # soglia: sopra questo scarto i controlli non "tornano" piu'
@@ -115,6 +117,10 @@ def forecast_adjusted(as_of: Optional[str] = None) -> dict:
     if corr.get("corroborates"):
         validity["note"] += (" Corroborata dalle regionali (Veneto/Campania/Puglia): "
                              "stesso pattern, controlli a posto.")
+    # disciplina dal backtest: la correzione si applica SOLO se i controlli tornano
+    # (applicarla sempre peggiora le previsioni passate; col gate e' neutra/migliore)
+    apply_corr = validity.get("controls_ok", False)
+    validity["applied"] = apply_corr
     out = []
     for p in nc["parties"]:
         name = p["name"]
@@ -122,7 +128,7 @@ def forecast_adjusted(as_of: Optional[str] = None) -> dict:
         d = disc.get(name)            # divergenza in punti di swing (urne vs sondaggi)
         # d>0: i sondaggi salgono piu' delle urne -> partito sovrastimato -> aggiusta GIU'
         # d<0: i sondaggi calano piu' delle urne -> partito sottostimato -> aggiusta SU'
-        adj = max(-CAP, min(CAP, -(d or 0.0) * DAMP))
+        adj = (max(-CAP, min(CAP, -(d or 0.0) * DAMP))) if apply_corr else 0.0
         out.append({"party": name, "model": round(model, 1),
                     "signal": (round(d, 1) if d is not None else None),
                     "adjustment": round(adj, 1),
