@@ -253,15 +253,28 @@ def comunali_map():
     if not (election and party):
         return jsonify({"error": "param 'election' e 'party' richiesti"}), 400
     coords = _comune_coords()
+    proj = {"geo_id": 1, "share": 1, "votes": 1, "election_id": 1}
+    if election == "all":
+        # per ogni comune, il risultato piu' RECENTE del partito su tutte le tornate
+        dates = {e["_id"]: e["date"] for e in
+                 get_db()["elections"].find({"type": "comunali"}, {"date": 1})}
+        best = {}
+        for r in get_db()[PARTY_RESULTS].find(
+                {"election_id": {"$in": list(dates)}, "party_id": party,
+                 "share": {"$gt": 0}}, proj):
+            d = dates.get(r["election_id"], "")
+            if r["geo_id"] not in best or d > best[r["geo_id"]][0]:
+                best[r["geo_id"]] = (d, r)
+        rows = [r for _, r in best.values()]
+    else:
+        rows = get_db()[PARTY_RESULTS].find(
+            {"election_id": election, "party_id": party, "share": {"$gt": 0}}, proj)
     pts = []
-    for r in get_db()[PARTY_RESULTS].find(
-            {"election_id": election, "party_id": party, "share": {"$gt": 0}},
-            {"geo_id": 1, "share": 1, "votes": 1}):
+    for r in rows:
         c = coords.get(r["geo_id"])
         if not c:
             continue
-        name = r["geo_id"].split(":", 2)[-1].title()
-        pts.append({"lat": c[0], "lng": c[1], "name": name,
+        pts.append({"lat": c[0], "lng": c[1], "name": r["geo_id"].split(":", 2)[-1].title(),
                     "share": r["share"], "votes": r.get("votes", 0)})
     return jsonify({"election": election, "party": party, "points": pts})
 

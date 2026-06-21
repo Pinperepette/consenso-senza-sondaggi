@@ -1040,8 +1040,11 @@ async function init(){
   sel.value=SEL; sel.onchange=()=>selectParty(sel.value);
   // comunali: solo partiti con dato territoriale
   const ce=document.getElementById("comelect");
+  const oall=document.createElement("option");oall.value="all";
+  oall.textContent="Tutte le tornate (ultimo risultato per comune)";ce.appendChild(oall);
   (await j("/comunali/elections")).forEach(e=>{const o=document.createElement("option");
     o.value=e.id;o.textContent=`${e.date} · ${e.n_comuni} comuni`;ce.appendChild(o);});
+  ce.value="all";
   const cp=document.getElementById("comparty");
   GEO_PARTIES.forEach(p=>{const o=document.createElement("option");o.value="party:"+p;o.textContent=p;cp.appendChild(o);});
   ce.onchange=loadComunali; cp.onchange=loadComunali;
