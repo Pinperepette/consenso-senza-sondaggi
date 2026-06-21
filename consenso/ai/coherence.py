@@ -14,37 +14,51 @@ from typing import Dict, List, Optional
 from consenso.ai.deepseek import chat_json
 from consenso.db.client import get_db
 from consenso.model.dimensions import PARTY_NAMES
+from consenso.model.fundamentals import GOV_TIMELINE
 
 ISSUES = ["immigrazione", "ambiente e clima", "diritti civili",
           "Unione Europea", "fisco e tasse", "giustizia"]
 PERIODS = ["2013-2018", "2018-2022", "2022-oggi"]
 
 _SYS = (
-    "Sei un analista politico rigoroso. Valuti la COERENZA tra ciò che un partito "
-    "italiano DICHIARA e come ha effettivamente VOTATO in Parlamento. "
+    "Sei un analista politico SEVERO e onesto. Valuti la COERENZA tra ciò che un "
+    "partito italiano DICHIARA e cosa ha fatto DAVVERO. Principio chiave: la "
+    "coerenza si dimostra QUANDO SI E' AL GOVERNO e si puo' attuare; in opposizione "
+    "votare e' gratis, quindi NON e' una prova di coerenza.\n"
     "Regole tassative:\n"
-    "- Per ogni tema dai: posizione dichiarata (1 frase), comportamento legislativo "
-    "(1 frase) e un punteggio di coerenza INTERO 0-10 (10 = fatti pienamente "
-    "allineati alle parole).\n"
-    "- CITA voti concreti: nome/oggetto della legge o misura, anno, e come ha votato "
-    "(a favore/contro/astenuto). Cita SOLO ciò di cui sei ragionevolmente sicuro.\n"
-    "- Dichiara la confidenza (alta|media|bassa). Se un partito non era in Parlamento "
-    "o non hai elementi, metti coherence null e confidence 'bassa'. NON inventare leggi.\n"
-    "- Dai anche un andamento per legislatura (coherence 0-10 per periodo) dove hai "
-    "elementi, altrimenti null.\n"
-    "Rispondi SOLO JSON in questo schema:\n"
-    '{"overall": 0-10, "summary": "1 frase",'
-    ' "by_issue": [{"issue":"...","stated":"...","action":"...","coherence":0-10,'
-    '"citations":[{"law":"...","year":2018,"vote":"a favore|contro|astenuto"}],'
+    "- Valuta un punteggio (0-10) SOLO per i periodi/temi in cui il partito era al "
+    "GOVERNO (te li indico). Se in un periodo era all'opposizione o non c'era, "
+    "coherence = null (non valutabile sui fatti).\n"
+    "- Sii SEVERO: pesano molto le PROMESSE NON MANTENUTE da chi governava (es. "
+    "taglio delle tasse o delle accise promesso e non fatto) e i CAMBI DI POSIZIONE "
+    "(es. uscita dall'euro poi abbandonata, posizioni sui vaccini ribaltate). "
+    "Questi abbassano nettamente la coerenza.\n"
+    "- CITA fatti concreti: misura/legge o promessa, anno, esito (mantenuta/"
+    "non mantenuta/ribaltata). Cita SOLO cio' di cui sei sicuro; NON inventare.\n"
+    "- Se il partito NON e' MAI stato al governo o non hai elementi affidabili: "
+    "overall = null, tutti i periodi null, e spiegalo nel summary.\n"
+    "Rispondi SOLO JSON:\n"
+    '{"overall": 0-10|null, "summary": "1 frase",'
+    ' "by_issue": [{"issue":"...","stated":"...","action":"...","coherence":0-10|null,'
+    '"citations":[{"law":"...","year":2018,"vote":"mantenuta|non mantenuta|ribaltata"}],'
     '"confidence":"alta|media|bassa"}],'
-    ' "by_period": [{"period":"2013-2018","coherence":0-10}]}')
+    ' "by_period": [{"period":"2013-2018","coherence":0-10|null}]}')
+
+
+def _gov_periods(party_id: str) -> str:
+    per = GOV_TIMELINE.get(party_id, [])
+    if not per:
+        return "MAI al governo (sempre opposizione) -> coerenza non valutabile sui fatti"
+    return ", ".join(f"{a[:4]}-{'oggi' if b > '2026' else b[:4]}" for a, b in per)
 
 
 def generate_coherence(party_id: str) -> Dict:
     name = PARTY_NAMES.get(party_id, party_id.replace("party:", ""))
     user = (f"PARTITO: {name}\nTEMI: {', '.join(ISSUES)}\n"
-            f"LEGISLATURE: {', '.join(PERIODS)}\n\n"
-            "Valuta la coerenza fatti/parole secondo le regole, citando i voti.")
+            f"LEGISLATURE: {', '.join(PERIODS)}\n"
+            f"PERIODI AL GOVERNO di questo partito: {_gov_periods(party_id)}\n\n"
+            "Valuta la coerenza SOLO sui periodi di governo, severo su promesse non "
+            "mantenute e cambi di posizione, citando i fatti.")
     out = chat_json(_SYS, user)
     out["party_id"] = party_id
     out["name"] = name.split(" (")[0]
