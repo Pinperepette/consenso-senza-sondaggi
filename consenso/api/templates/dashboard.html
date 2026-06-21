@@ -562,22 +562,31 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
 /* ---------- fatti e consenso (ascesa e declino) ---------- */
 let TL_CHART=null;
 const TL_KIND={dietrofront:"#e2785b",alleanza:"#e0b35a",picco:"#7ee29a",minimo:"#8a97a8",voto:"#5aa9e6"};
+let TL_WIRED=false;
 async function loadTimeline(){
   const sel=document.getElementById("tl-party");
-  const t0=await j("/timeline?party=LEGA").catch(()=>null);
-  if(!sel.options.length&&t0){
+  if(!sel.options.length){
     ["LEGA","FDI","FI","PD","M5S","AVS"].forEach(p=>{const o=document.createElement("option");o.value=p;o.textContent=p;sel.appendChild(o);});
-    sel.value="LEGA"; sel.onchange=()=>renderTimeline(sel.value);
+    sel.value="LEGA";
+  }
+  if(!TL_WIRED){   // cabla SEMPRE i controlli, una sola volta
+    TL_WIRED=true;
+    sel.onchange=()=>renderTimeline(sel.value);
     document.getElementById("tl-discover").onclick=discoverEvents;
   }
   renderTimeline(sel.value||"LEGA");
 }
 async function discoverEvents(){
   const p=document.getElementById("tl-party").value, st=document.getElementById("tl-status");
-  st.textContent="🤖 AI legge le fonti…";
-  const r=await fetch("/timeline/discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({party:p})}).then(r=>r.json()).catch(()=>({error:"rete"}));
-  st.textContent=r.error?("⚠️ "+r.error):`✓ ${r.found} eventi (da verificare)`;
-  if(!r.error)renderTimeline(p);
+  const btn=document.getElementById("tl-discover");
+  btn.disabled=true; const old=btn.textContent; btn.textContent="🤖 in corso…";
+  st.textContent="l'AI legge la voce Wikipedia di "+p+"…";
+  try{
+    const r=await fetch("/timeline/discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({party:p})}).then(r=>r.json());
+    if(r.error){st.textContent="⚠️ "+r.error;}
+    else{st.textContent=`✓ ${r.found} eventi trovati per ${p} (vedi sotto, badge "da verificare")`; await renderTimeline(p);}
+  }catch(e){st.textContent="⚠️ errore di rete";}
+  btn.disabled=false; btn.textContent=old;
 }
 async function renderTimeline(party){
   const t=await j("/timeline?party="+party).catch(()=>null);
