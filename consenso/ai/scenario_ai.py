@@ -92,6 +92,37 @@ def generate_spec_from_news(as_of: Optional[str] = None,
     return gen
 
 
+def _norm(s: str) -> str:
+    import re
+    return re.sub(r"[^a-z0-9 ]", " ", re.sub(r"\s+", " ", (s or "").lower())).strip()
+
+
+def _verify_quote(quote: str, source_norm: str, source_tokens: set) -> bool:
+    """Anti-allucinazione: la citazione è davvero nell'articolo? Match esatto
+    (normalizzato) o, se l'AI ha parafrasato, forte sovrapposizione di parole."""
+    q = _norm(quote)
+    if len(q) < 8:
+        return False
+    if q in source_norm:
+        return True
+    qt = [w for w in q.split() if len(w) > 3]
+    if not qt:
+        return False
+    overlap = sum(1 for w in qt if w in source_tokens) / len(qt)
+    return overlap >= 0.8        # quasi tutte le parole-chiave presenti
+
+
+def _verify_spec(spec: Dict, articles: str) -> Dict:
+    src = _norm(articles)
+    toks = set(src.split())
+    for d in spec.get("deltas", []):
+        d["quote_verified"] = _verify_quote(d.get("source_quote", ""), src, toks)
+    if spec.get("new_party"):
+        spec["new_party"]["quote_verified"] = _verify_quote(
+            spec["new_party"].get("source_quote", ""), src, toks)
+    return spec
+
+
 def generate_spec(articles: str, as_of: Optional[str] = None) -> Dict:
     parties, base, meta = projected_shares(as_of)
     if parties is None:
@@ -106,4 +137,8 @@ def generate_spec(articles: str, as_of: Optional[str] = None) -> Dict:
     # sanitizza: tieni solo party id validi
     spec["deltas"] = [d for d in spec.get("deltas", [])
                       if d.get("party") in PARTY_IDS]
+    # anti-allucinazione: verifica che le citazioni siano davvero negli articoli
+    spec = _verify_spec(spec, articles)
+    n_unver = sum(1 for d in spec["deltas"] if not d.get("quote_verified"))
+    spec["quotes_unverified"] = n_unver
     return {"spec": spec, "baseline": baseline, "meta": meta}

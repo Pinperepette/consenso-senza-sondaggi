@@ -1338,12 +1338,14 @@ function renderAssumptions(){
   const el=document.getElementById("scen-assumptions");if(!SPEC){el.innerHTML="";return;}
   let h="<div class='muted' style='margin:14px 0 6px;font-size:12px'>Assunzioni (modificabili, in punti %):</div>";
   const dest=t=>!t?'':(typeof t==='string'?t.replace('party:',''):Object.entries(t).map(([k,v])=>k.replace('party:','')+' '+Math.round(v*100)+'%').join('+'));
+  if(SPEC.quotes_unverified)h+=`<div class="note" style="margin:0 0 8px">⚠️ ${SPEC.quotes_unverified} citazione/i <b>non trovate</b> negli articoli: l'AI potrebbe averle parafrasate o inventate. Controllale prima di fidarti di quelle assunzioni.</div>`;
   (SPEC.deltas||[]).forEach((d,i)=>{
     const to=d.to?`<span style="font-size:11px;color:#7ee29a">→ ${dest(d.to)}</span>`:'';
+    const vf=d.quote_verified===false?`<span class="badge" style="background:#3a2017;color:#e08a5a" title="citazione non trovata nell'articolo">⚠ non verificata</span>`:(d.quote_verified?`<span class="badge" style="background:#15281c;color:#7ee29a" title="citazione presente nell'articolo">✓ fonte</span>`:'');
     h+=`<div class="row"><div class="pname" style="color:${col(d.party)}">${d.party.replace('party:','')}</div>
       <input type="number" step="0.5" value="${d.mean}" data-i="${i}" class="dlt"
         style="width:64px;background:#0c1016;color:#fff;border:1px solid var(--line);border-radius:6px;padding:4px">
-      ${to}
+      ${to} ${vf}
       <span class="muted" style="font-size:11px;flex:1">${d.source_quote?('“'+d.source_quote.slice(0,80)+'”'):(d.rationale||'').slice(0,80)}</span></div>`;
   });
   const n=SPEC.new_party;
