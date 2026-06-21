@@ -37,7 +37,8 @@ def _clean_html(raw: str) -> str:
 
 
 def discover_from_wikipedia(party: str) -> dict:
-    """Scarica la voce Wikipedia del partito e fa estrarre gli eventi all'AI."""
+    """Scarica la voce Wikipedia del partito (API plaintext) e fa estrarre gli eventi all'AI."""
+    import json as _json
     from consenso.ai.deepseek import available, chat_json
     if not available():
         return {"error": "AI non disponibile"}
@@ -45,9 +46,17 @@ def discover_from_wikipedia(party: str) -> dict:
     if not page:
         return {"error": f"nessuna pagina nota per {party}"}
     from consenso.etl.base import http_get
+    title = page.replace("_", " ")
+    api = ("https://it.wikipedia.org/w/api.php?format=json&action=query&prop=extracts"
+           "&explaintext=1&redirects=1&titles=" + title.replace(" ", "%20").replace("'", "%27"))
     url = f"https://it.wikipedia.org/wiki/{page}"
     try:
-        text = _clean_html(http_get(url).decode("utf-8", "replace"))[:14000]
+        data = _json.loads(http_get(api).decode("utf-8", "replace"))
+        pages = data["query"]["pages"]
+        text = next(iter(pages.values())).get("extract", "")
+        text = re.sub(r"\s+", " ", text)[:14000]
+        if not text:
+            return {"error": "voce Wikipedia vuota"}
     except Exception as exc:  # noqa: BLE001
         return {"error": f"download fallito: {str(exc)[:80]}"}
     try:
