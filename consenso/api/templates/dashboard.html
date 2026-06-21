@@ -753,7 +753,7 @@ function renderPartyRegions(){
 /* ---------- comunali (punti) ---------- */
 async function ensureCmap(){
   if(cmap)return;
-  cmap=L.map("cmap",{attributionControl:false}).setView([42,12.2],5.4);
+  cmap=L.map("cmap",{attributionControl:false,preferCanvas:true}).setView([42,12.2],5.4);
   if(!geojson)geojson=await j("/static/regioni.geojson");
   L.geoJSON(geojson,{style:()=>({color:"#2c3744",weight:1,fillColor:"#10161d",fillOpacity:1})}).addTo(cmap);
   cmarkers=L.layerGroup().addTo(cmap);
@@ -780,6 +780,9 @@ async function loadComunali(){
       ? `<span class="swatch" style="background:${c}"></span> ${pa.replace('party:','')} presente in <b>${pts.length}</b> comuni · max ${pct(max)} · cerchio più grande = quota più alta`
       : `${pa.replace('party:','')} non si è presentato col proprio simbolo in questa tornata`;
   }
+  // i punti sono stati aggiunti: forza un ridisegno (il renderer puo' essere
+  // stato creato a dimensione 0 con la scheda nascosta)
+  if(cmap){cmap.invalidateSize(); requestAnimationFrame(()=>cmap.invalidateSize());}
 }
 
 /* ---------- scenari AI ---------- */
