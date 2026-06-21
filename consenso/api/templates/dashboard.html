@@ -169,6 +169,7 @@
   <button data-tab="confronto">⚖️ Confronto</button>
   <button data-tab="track">🎯 Track record</button>
   <button data-tab="coerenza">🏛 Disciplina</button>
+  <button data-tab="timeline">📉 Fatti e consenso</button>
   <button data-tab="urnevssondaggi">📊 Urne vs Sondaggi</button>
   <button data-tab="dati">✍️ Dati</button>
 </nav>
@@ -392,6 +393,17 @@
     <div class="note" style="margin-top:14px">⚠️ "Disciplina" = % di voti in cui il partito ha seguito la maggioranza del suo blocco. "Rotture" = le volte che ha votato contro il proprio blocco (segnale raro e quindi significativo). "Voti larghi" = approvati da entrambi i blocchi (consenso bipartisan).</div>
   </section>
 
+  <section class="tab" id="tab-timeline">
+    <div class="card">
+      <h3>📉 Fatti e consenso <span class="muted">— ascesa e declino, evento per evento</span></h3>
+      <div class="hint">Il consenso <b>reale</b> (sondaggi + risultati elettorali) annotato con i <b>fatti</b> datati: alleanze, giravolte, voti. Si vede <i>cosa</i> ha fatto il partito e <i>dov'era</i> il consenso in quel momento.</div>
+      <label class="ctrl" style="margin:8px 0;display:block">Partito <select id="tl-party"></select></label>
+      <div style="position:relative;height:280px"><canvas id="tl-chart"></canvas></div>
+      <div id="tl-events" style="margin-top:14px"></div>
+    </div>
+    <div class="note" style="margin-top:14px">⚠️ Eventi <b>datati e verificabili</b> (con fonte). Il legame fatto→consenso è una <b>lettura cronologica</b>, non una prova di causa-effetto: il consenso si muove per molte ragioni insieme. Il trend è dato reale; gli eventi sono curati a mano.</div>
+  </section>
+
   <section class="tab" id="tab-urnevssondaggi">
     <div class="card">
       <h3>📊 Urne vs Sondaggi <span class="muted">— quanto i sondaggi divergono dai voti reali</span></h3>
@@ -542,7 +554,52 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==="coerenza"){loadCoherence();}
   if(b.dataset.tab==="urnevssondaggi"){loadUrneVsSondaggi();}
   if(b.dataset.tab==="dati"){initDati();}
+  if(b.dataset.tab==="timeline"){loadTimeline();}
 });
+
+/* ---------- fatti e consenso (ascesa e declino) ---------- */
+let TL_CHART=null;
+const TL_KIND={dietrofront:"#e2785b",alleanza:"#e0b35a",picco:"#7ee29a",minimo:"#8a97a8",voto:"#5aa9e6"};
+async function loadTimeline(){
+  const sel=document.getElementById("tl-party");
+  const t0=await j("/timeline?party=LEGA").catch(()=>null);
+  if(!sel.options.length&&t0){
+    (t0.parties_available||["LEGA"]).forEach(p=>{const o=document.createElement("option");o.value=p;o.textContent=p;sel.appendChild(o);});
+    sel.value="LEGA"; sel.onchange=()=>renderTimeline(sel.value);
+  }
+  renderTimeline(sel.value||"LEGA");
+}
+async function renderTimeline(party){
+  const t=await j("/timeline?party="+party).catch(()=>null);
+  if(!t){return;}
+  const c=col("party:"+party);
+  const labels=t.series.map(s=>s.period);
+  const qidx=d=>{const y=d.slice(0,4),q=((parseInt(d.slice(5,7))-1)/3|0)+1;return labels.indexOf(`${y}-Q${q}`);};
+  // dataset linea sondaggi
+  const line={type:"line",label:"sondaggi",data:t.series.map(s=>s.value),borderColor:c,backgroundColor:c+"22",tension:.3,pointRadius:0,borderWidth:2,fill:true,order:3};
+  // punti elezioni reali
+  const elec={type:"scatter",label:"elezioni reali",data:t.elections.map(e=>({x:qidx(e.date),y:e.value})).filter(p=>p.x>=0),
+    backgroundColor:"#fff",borderColor:c,pointRadius:5,pointStyle:"rectRot",order:1};
+  // punti eventi
+  const ev={type:"scatter",label:"eventi",data:t.events.map((e,i)=>({x:qidx(e.date),y:e.consensus,_i:i})).filter(p=>p.x>=0&&p.y!=null),
+    backgroundColor:t.events.filter(e=>qidx(e.date)>=0&&e.consensus!=null).map(e=>TL_KIND[e.kind]||"#aaa"),
+    pointRadius:7,pointStyle:"circle",borderColor:"#0a0e13",borderWidth:2,order:0};
+  if(TL_CHART)TL_CHART.destroy();
+  TL_CHART=new Chart(document.getElementById("tl-chart"),{data:{labels,datasets:[line,elec,ev]},
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:"#aab",boxWidth:12,font:{size:11}}},
+      tooltip:{callbacks:{label:(ctx)=>{
+        if(ctx.dataset.label==="eventi"){const e=t.events[ctx.raw._i];return [e.title+" ("+e.date+")", "consenso ~"+e.consensus+"%"];}
+        if(ctx.dataset.label==="elezioni reali")return "elezione: "+ctx.raw.y+"%";
+        return "sondaggi: "+ctx.raw+"%";}}}},
+      scales:{x:{ticks:{maxTicksLimit:12,color:"#7a8699",font:{size:10}},grid:{display:false}},
+              y:{ticks:{color:"#7a8699",callback:v=>v+"%"},grid:{color:"#1c2530"}}}}});
+  // lista eventi
+  document.getElementById("tl-events").innerHTML=t.events.map(e=>{
+    const k=TL_KIND[e.kind]||"#aaa";
+    return `<div style="border-left:3px solid ${k};padding:6px 0 6px 10px;margin:8px 0">
+      <div style="font-size:13px"><b>${e.date}</b> · <b style="color:${k}">${e.title}</b> ${e.consensus!=null?`<span class="muted">— consenso ~${e.consensus}%</span>`:''}</div>
+      <div style="font-size:12px;color:#aab;margin-top:2px">${e.note||''} ${e.source?`<a href="${e.source}" target="_blank" style="color:#5aa9e6">fonte</a>`:''}</div></div>`;}).join("");
+}
 
 /* ---------- inserimento dati manuale + estrazione AI ---------- */
 let DATI_INIT=false;

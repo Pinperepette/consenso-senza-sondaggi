@@ -1,0 +1,19 @@
+{
+  "_nota": "Eventi politici DATATI e VERIFICABILI (con fonte). Servono ad annotare il trend reale del consenso. Il legame evento->consenso e' una lettura cronologica, NON una prova di causa-effetto. Curati a mano; aggiungerne richiede una fonte.",
+  "LEGA": [
+    {"date": "2018-06-01", "kind": "alleanza", "title": "Governo Conte I (Lega-M5S)", "note": "Salvini vicepremier e ministro dell'Interno. Linea sovranista, toni anti-UE.", "source": "https://it.wikipedia.org/wiki/Governo_Conte_I"},
+    {"date": "2019-05-26", "kind": "picco", "title": "Europee 2019: 34,3%", "note": "Massimo storico della Lega di Salvini.", "source": "https://it.wikipedia.org/wiki/Elezioni_europee_del_2019_in_Italia"},
+    {"date": "2019-08-08", "kind": "dietrofront", "title": "Crisi del Papeete: fa cadere il governo", "note": "Salvini ritira la fiducia a Conte puntando al voto; la mossa fallisce.", "source": "https://it.wikipedia.org/wiki/Governo_Conte_I"},
+    {"date": "2019-09-05", "kind": "alleanza", "title": "Nasce il Conte II (M5S-PD): Lega all'opposizione", "note": "Esclusa dal governo dopo la crisi d'agosto.", "source": "https://it.wikipedia.org/wiki/Governo_Conte_II"},
+    {"date": "2021-02-13", "kind": "dietrofront", "title": "Entra nel governo Draghi", "note": "Dopo anni di linea anti-establishment, la Lega sostiene il governo dell'ex-BCE Draghi, con PD, M5S e FI.", "source": "https://it.wikipedia.org/wiki/Governo_Draghi"},
+    {"date": "2021-07-22", "kind": "dietrofront", "title": "Green pass: critiche a parole, governo che lo vara", "note": "Salvini contesta le misure (\"no obblighi\"), ma la Lega resta nella maggioranza che approva i decreti sul certificato verde.", "source": "https://it.wikipedia.org/wiki/Certificazione_verde_COVID-19"},
+    {"date": "2022-10-22", "kind": "alleanza", "title": "Governo Meloni: Lega partner minore di FdI", "note": "FdI diventa il primo partito del centrodestra e assorbe gran parte dell'elettorato di destra.", "source": "https://it.wikipedia.org/wiki/Governo_Meloni"},
+    {"date": "2024-06-09", "kind": "minimo", "title": "Europee 2024: ~9% (Vannacci capolista)", "note": "Lontano dal 34% del 2019. Poco dopo Vannacci entra in tensione con la linea del partito.", "source": "https://it.wikipedia.org/wiki/Elezioni_europee_del_2024_in_Italia"}
+  ],
+  "M5S": [
+    {"date": "2018-03-04", "kind": "picco", "title": "Politiche 2018: 32,7%", "note": "Primo partito. Linea anti-establishment, ne' destra ne' sinistra.", "source": "https://it.wikipedia.org/wiki/Elezioni_politiche_del_2018_in_Italia"},
+    {"date": "2019-09-05", "kind": "alleanza", "title": "Alleanza col PD (Conte II)", "note": "Dopo aver governato con la Lega, vira verso il PD: svolta che spacca l'elettorato.", "source": "https://it.wikipedia.org/wiki/Governo_Conte_II"},
+    {"date": "2021-02-13", "kind": "alleanza", "title": "Sostiene il governo Draghi", "note": "Il M5S nato contro l'establishment entra nella maggioranza Draghi; segue la scissione di Di Maio (2022).", "source": "https://it.wikipedia.org/wiki/Governo_Draghi"},
+    {"date": "2022-09-25", "kind": "minimo", "title": "Politiche 2022: 15,4%", "note": "Meno della meta' del 2018, pur risalendo nel finale di campagna al Sud.", "source": "https://it.wikipedia.org/wiki/Elezioni_politiche_del_2022_in_Italia"}
+  ]
+}

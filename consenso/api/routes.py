@@ -450,6 +450,47 @@ def _quarter_avg(rows):
             for k, v in sorted(buckets.items()) if v[1]]
 
 
+@api.get("/timeline")
+def timeline():
+    """Trend REALE del consenso di un partito (sondaggi trimestrali + risultati
+    elettorali) annotato con EVENTI datati e verificabili. Il legame evento->consenso
+    è una lettura cronologica, non una prova di causa-effetto."""
+    import json as _json
+    from pathlib import Path
+    db = get_db()
+    party = (request.args.get("party") or "LEGA").replace("party:", "")
+    pid = "party:" + party
+    # serie trimestrale dai sondaggi
+    series = _quarter_avg(db["polls"].find({"party_id": pid}, {"date": 1, "share": 1}))
+    sidx = {s["period"]: s["value"] for s in series}
+
+    def consensus_at(day: str):
+        if not day or len(day) < 7:
+            return None
+        q = (int(day[5:7]) - 1) // 3 + 1
+        return sidx.get(f"{day[:4]}-Q{q}")
+    # risultati elettorali reali (nazionali) come punti
+    elec = []
+    for e in db["elections"].find({"type": {"$in": ["politiche", "europee"]}},
+                                  {"date": 1, "type": 1}).sort("date", 1):
+        rows = list(db[PARTY_RESULTS].find({"election_id": e["_id"]}, {"party_id": 1, "votes": 1}))
+        tot = sum(r.get("votes", 0) for r in rows)
+        v = sum(r.get("votes", 0) for r in rows if r.get("party_id") == pid)
+        if tot and v:
+            elec.append({"date": e["date"], "type": e["type"], "value": round(100 * v / tot, 1)})
+    # eventi curati
+    fx = Path(__file__).resolve().parent.parent.parent / "data" / "fixtures" / "political_events.json"
+    events = []
+    if fx.exists():
+        allev = _json.loads(fx.read_text(encoding="utf-8")).get(party, [])
+        for ev in allev:
+            events.append({**ev, "consensus": consensus_at(ev["date"])})
+    return jsonify({"party": party, "series": series, "elections": elec,
+                    "events": events,
+                    "parties_available": [k for k in (_json.loads(fx.read_text(encoding="utf-8")).keys()
+                    if fx.exists() else []) if not k.startswith("_")]})
+
+
 @api.get("/data/poll_trend")
 def data_poll_trend():
     """Media trimestrale dei sondaggi per partito; opzionalmente la serie di un singolo istituto."""
