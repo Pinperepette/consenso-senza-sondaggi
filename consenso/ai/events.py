@@ -25,7 +25,7 @@ SYSTEM = (
     "elettorali. SOLO eventi con una DATA presente o ricavabile dal testo. NON inventare "
     "date o fatti: se la data non c'e', ometti l'evento. Rispondi SOLO JSON: "
     '{"events":[{"date":"YYYY-MM-DD","kind":"alleanza|dietrofront|scissione|voto|picco|minimo",'
-    '"title":"breve","note":"una frase"}]} (max 12 eventi, dal piu' " "vecchio al piu' recente)."
+    '"title":"breve","note":"una frase"}]} . Massimo 12 eventi, dal piu vecchio al piu recente."
 )
 
 
