@@ -126,6 +126,7 @@
   <button data-tab="track">🎯 Track record</button>
   <button data-tab="coerenza">📜 Coerenza</button>
   <button data-tab="urnevssondaggi">📊 Urne vs Sondaggi</button>
+  <button data-tab="previsioni">🔮 Previsioni</button>
 </nav>
 <div id="scenbanner" style="display:none;background:#231a10;border-bottom:1px solid #4a3a1a;
   color:#e0b35a;padding:8px 22px;font-size:13px;flex-shrink:0">
@@ -341,6 +342,22 @@
     <div class="note" style="margin-top:14px">⚠️ Le comunali <b>non</b> sono il dato nazionale (le liste civiche drenano voti a tutti): si legge la <b>direzione</b> e la magnitudine <b>relativa</b> dello swing, non un numero nazionale. FI e M5S sono i <b>controlli</b>: se loro tornano e Lega/FdI no, la divergenza è un bias specifico dei sondaggi.</div>
   </section>
 
+  <section class="tab" id="tab-previsioni">
+    <div class="grid g2">
+      <div class="card">
+        <h3>📊 Secondo i sondaggi <span class="muted">— la stima del modello</span></h3>
+        <div class="hint">la fotografia attuale come la raccontano i sondaggi (segnale debole, ma è ciò su cui si appoggia il presente).</div>
+        <div id="fc-poll"></div>
+      </div>
+      <div class="card">
+        <h3>🔮 Corretta coi voti reali <span class="muted">— recenti</span></h3>
+        <div class="hint">la stessa stima aggiustata con la divergenza urne-vs-sondaggi (smorzata, max ±4 pt). <b>Ipotesi</b>: che il segnale locale valga anche sul nazionale.</div>
+        <div id="fc-adj"></div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:14px">⚠️ La colonna "corretta" è una <b>lettura alternativa</b>, non un numero certo: le comunali non sono il dato nazionale, l'aggiustamento è limitato e l'incertezza resta alta. Serve a mostrare <b>dove</b> i sondaggi potrebbero sbagliare (Lega sottostimata, FdI sovrastimata), non a sostituire la stima.</div>
+  </section>
+
   <p class="muted" style="font-size:12px;margin-top:14px;flex-shrink:0">
     Fonti reali: Ministero dell'Interno/Eligendo (8 elezioni nazionali 2008-2024 + 13 regionali, 7.800 comuni) ·
     reddito MEF · confini ISTAT. Nessun sondaggio. Le correlazioni sono a livello di comune (ecologiche), non individuali.
@@ -387,7 +404,27 @@ document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==="track"){loadTrack();}
   if(b.dataset.tab==="coerenza"){loadCoherence();}
   if(b.dataset.tab==="urnevssondaggi"){loadUrneVsSondaggi();}
+  if(b.dataset.tab==="previsioni"){loadPrevisioni();}
 });
+
+/* ---------- previsioni: sondaggi vs corretta coi voti reali ---------- */
+async function loadPrevisioni(){
+  const f=await j("/forecast").catch(()=>null);
+  if(!f||f.error){document.getElementById("fc-poll").innerHTML="<span class='muted'>non disponibile</span>";return;}
+  const ps=f.parties.slice().sort((a,b)=>b.model-a.model);
+  const max=Math.max(...ps.flatMap(p=>[p.model,p.adjusted]),35);
+  const bar=(name,val,extra)=>`<div class="row" style="align-items:center;gap:8px;margin:5px 0">
+    <div class="pname" style="width:54px;color:${col('party:'+name)}">${name}</div>
+    <div style="flex:1;background:#0c1016;border-radius:6px;height:18px;position:relative">
+      <div style="position:absolute;left:0;top:0;height:18px;border-radius:6px;width:${Math.min(100,val/max*100)}%;background:${col('party:'+name)}99"></div></div>
+    <div style="width:96px;text-align:right;font-size:13px"><b>${val.toFixed(1)}%</b>${extra||''}</div></div>`;
+  document.getElementById("fc-poll").innerHTML=ps.map(p=>bar(p.party,p.model)).join("");
+  document.getElementById("fc-adj").innerHTML=ps.map(p=>{
+    const dv=p.adjusted-p.model;
+    const d=Math.abs(dv)<0.05?'':` <span style="color:${dv>0?'#7ee29a':'#e2785b'};font-size:11px">${dv>0?'▲':'▼'}${Math.abs(dv).toFixed(1)}</span>`;
+    return bar(p.party,p.adjusted,d);
+  }).join("");
+}
 
 /* ---------- urne vs sondaggi ---------- */
 async function loadUrneVsSondaggi(){

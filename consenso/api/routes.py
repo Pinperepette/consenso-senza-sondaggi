@@ -385,6 +385,14 @@ def _coal_arg():
     return None, request.args.get("as_of")
 
 
+@api.get("/forecast")
+def forecast_route():
+    """Previsione: stima dei sondaggi vs stima corretta coi voti reali recenti."""
+    from consenso.model.forecast import forecast_adjusted
+    res = forecast_adjusted(request.args.get("as_of"))
+    return jsonify(res), (404 if "error" in res else 200)
+
+
 @api.get("/swings")
 def swings_route():
     """Sondaggi vs Urne: swing reale nei comuni vs swing dei sondaggi."""
