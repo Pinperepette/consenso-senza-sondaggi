@@ -413,23 +413,33 @@ def data_overview():
     })
 
 
-@api.get("/data/poll_trend")
-def data_poll_trend():
-    """Media trimestrale dei sondaggi per partito (per il grafico di consultazione)."""
-    db = get_db()
-    party = "party:" + (request.args.get("party") or "FDI").replace("party:", "")
+def _quarter_avg(rows):
     buckets = {}
-    for r in db["polls"].find({"party_id": party}, {"date": 1, "share": 1}):
+    for r in rows:
         d = r.get("date", "")
         if len(d) < 7:
             continue
         q = (int(d[5:7]) - 1) // 3 + 1
-        key = f"{d[:4]}-Q{q}"
-        b = buckets.setdefault(key, [0.0, 0])
+        b = buckets.setdefault(f"{d[:4]}-Q{q}", [0.0, 0])
         b[0] += r["share"]; b[1] += 1
-    series = [{"period": k, "value": round(100 * v[0] / v[1], 1)}
-              for k, v in sorted(buckets.items()) if v[1]]
-    return jsonify({"party": party.replace("party:", ""), "series": series})
+    return [{"period": k, "value": round(100 * v[0] / v[1], 1)}
+            for k, v in sorted(buckets.items()) if v[1]]
+
+
+@api.get("/data/poll_trend")
+def data_poll_trend():
+    """Media trimestrale dei sondaggi per partito; opzionalmente la serie di un singolo istituto."""
+    db = get_db()
+    party = "party:" + (request.args.get("party") or "FDI").replace("party:", "")
+    pollster = request.args.get("pollster") or None
+    proj = {"date": 1, "share": 1}
+    series = _quarter_avg(db["polls"].find({"party_id": party}, proj))
+    out = {"party": party.replace("party:", ""), "series": series}
+    if pollster:
+        ps = _quarter_avg(db["polls"].find({"party_id": party, "pollster": pollster}, proj))
+        out["pollster"] = pollster
+        out["pollster_series"] = ps
+    return jsonify(out)
 
 
 @api.get("/data/polls")

@@ -381,7 +381,7 @@
       <div class="save-row" style="margin:0 0 8px">
         <b style="font-size:13px">📈 Andamento sondaggi</b>
         <select id="dt-tr-party"></select>
-        <span class="muted" style="font-size:12px">media trimestrale per partito (tutti gli istituti)</span>
+        <span class="muted" style="font-size:12px">media trimestrale; filtra un istituto sotto per sovrapporlo</span>
       </div>
       <div style="position:relative;height:240px"><canvas id="dt-trend"></canvas></div>
     </div>
@@ -520,7 +520,7 @@ function initDati(){
   document.getElementById("dt-r-save").onclick=dtSaveResult;
   document.getElementById("dt-rm-polls").onclick=()=>{dtRemove("polls","dt-p-status");dtLoadPolls();dtOverview();};
   document.getElementById("dt-rm-res").onclick=()=>{dtRemove("results","dt-r-status");dtLoadElections();dtOverview();};
-  document.getElementById("dt-ov-pollster").onchange=dtLoadPolls;
+  document.getElementById("dt-ov-pollster").onchange=()=>{dtLoadPolls();dtTrend();};
   document.getElementById("dt-ov-etype").onchange=dtLoadElections;
   // sotto-tab Visione / Inserimento
   document.querySelectorAll(".dt-sub").forEach(b=>b.onclick=()=>{
@@ -539,15 +539,28 @@ function initDati(){
 let DT_TREND=null;
 async function dtTrend(){
   const p=document.getElementById("dt-tr-party").value;
-  const r=await j("/data/poll_trend?party="+p).catch(()=>({series:[]}));
+  const ps=document.getElementById("dt-ov-pollster").value;
+  const r=await j("/data/poll_trend?party="+p+(ps?"&pollster="+encodeURIComponent(ps):"")).catch(()=>({series:[]}));
   const c=col("party:"+p);
-  const ds={label:p,data:(r.series||[]).map(s=>s.value),borderColor:c,backgroundColor:c+"33",
-    tension:.3,pointRadius:0,borderWidth:2,fill:true};
   const labels=(r.series||[]).map(s=>s.period);
-  if(DT_TREND){DT_TREND.data.labels=labels;DT_TREND.data.datasets=[ds];DT_TREND.update();return;}
+  const idx=Object.fromEntries((r.series||[]).map(s=>[s.period,s.value]));
+  // linea media (tutti gli istituti)
+  const datasets=[{label:ps?"media (tutti)":p,data:labels.map(l=>idx[l]),
+    borderColor:ps?"#566":c,backgroundColor:ps?"transparent":c+"33",
+    borderDash:ps?[5,4]:[],tension:.3,pointRadius:0,borderWidth:2,fill:!ps}];
+  // serie dell'istituto selezionato, sovrapposta
+  if(ps&&r.pollster_series){
+    const pi=Object.fromEntries(r.pollster_series.map(s=>[s.period,s.value]));
+    datasets.push({label:ps,data:labels.map(l=>pi[l]!=null?pi[l]:null),
+      borderColor:c,backgroundColor:c+"33",tension:.3,pointRadius:3,borderWidth:2.5,
+      fill:true,spanGaps:true});
+  }
+  const showLeg=!!ps;
+  if(DT_TREND){DT_TREND.data.labels=labels;DT_TREND.data.datasets=datasets;
+    DT_TREND.options.plugins.legend.display=showLeg;DT_TREND.update();return;}
   DT_TREND=new Chart(document.getElementById("dt-trend"),{type:"line",
-    data:{labels,datasets:[ds]},
-    options:{maintainAspectRatio:false,plugins:{legend:{display:false}},
+    data:{labels,datasets},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:showLeg,labels:{color:"#aab",boxWidth:12,font:{size:11}}}},
       scales:{x:{ticks:{maxTicksLimit:12,color:"#7a8699",font:{size:10}},grid:{display:false}},
               y:{ticks:{color:"#7a8699",callback:v=>v+"%"},grid:{color:"#1c2530"}}}}});
 }
