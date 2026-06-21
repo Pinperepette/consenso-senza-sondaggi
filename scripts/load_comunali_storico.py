@@ -75,8 +75,9 @@ def ingest_storico(date: str) -> dict:
     if len(rows) < 2:
         return {"skipped": "vuoto"}
     cols = rows[0]
-    ci_reg, ci_com = _col(cols, "REGIONE"), _col(cols, "COMUNE")
-    ci_lst = _col(cols, "DESCR_LISTA", "LISTA", "DENOMINAZIONE_LISTA", "NOME_LISTA")
+    ci_reg = _col(cols, "REGIONE", "DESCRREGIONE", "DESCR_REGIONE")
+    ci_com = _col(cols, "COMUNE", "DESCRCOMUNE", "DESCR_COMUNE")
+    ci_lst = _col(cols, "DESCR_LISTA", "DESCRLISTA", "LISTA", "DENOMINAZIONE_LISTA", "NOME_LISTA")
     ci_vot = _col(cols, "VOTI_LISTA", "VOTILISTA", "VOTI")
     if None in (ci_reg, ci_com, ci_lst, ci_vot):
         return {"skipped": f"colonne mancanti {cols[:16]}"}
