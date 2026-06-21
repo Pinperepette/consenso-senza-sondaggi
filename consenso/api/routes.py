@@ -393,6 +393,79 @@ def forecast_route():
     return jsonify(res), (404 if "error" in res else 200)
 
 
+@api.get("/data/overview")
+def data_overview():
+    """Riepilogo visivo di cosa c'è nel DB."""
+    db = get_db()
+    from consenso.db.schema import PARTY_RESULTS
+    by_type = {}
+    for e in db["elections"].find({}, {"type": 1}):
+        by_type[e["type"]] = by_type.get(e["type"], 0) + 1
+    polls = db["polls"].count_documents({})
+    dates = [d["date"] for d in db["polls"].find({}, {"date": 1}).sort("date", 1).limit(1)]
+    dates += [d["date"] for d in db["polls"].find({}, {"date": 1}).sort("date", -1).limit(1)]
+    return jsonify({
+        "polls": polls, "polls_manual": db["polls"].count_documents({"_manual": True}),
+        "polls_span": dates, "pollsters": len(db["polls"].distinct("pollster")),
+        "elections": db["elections"].count_documents({}), "elections_by_type": by_type,
+        "party_results": db[PARTY_RESULTS].count_documents({}),
+        "results_manual": db[PARTY_RESULTS].count_documents({"_meta.source": "manuale"}),
+    })
+
+
+@api.get("/data/polls")
+def data_polls():
+    """Sondaggi raggruppati per (istituto, data), piu' recenti prima."""
+    db = get_db()
+    limit = min(int(request.args.get("limit", 40)), 200)
+    pollster = request.args.get("pollster")
+    match = {"pollster": pollster} if pollster else {}
+    pipe = [{"$match": match},
+            {"$group": {"_id": {"d": "$date", "p": "$pollster"},
+                        "shares": {"$push": {"k": "$party_id", "v": "$share"}},
+                        "manual": {"$max": {"$ifNull": ["$_manual", False]}}}},
+            {"$sort": {"_id.d": -1}}, {"$limit": limit}]
+    out = []
+    for g in db["polls"].aggregate(pipe):
+        sh = {s["k"].replace("party:", ""): round(s["v"] * 100, 1) for s in g["shares"]}
+        out.append({"date": g["_id"]["d"], "pollster": g["_id"]["p"],
+                    "manual": bool(g["manual"]), "shares": sh})
+    return jsonify({"polls": out,
+                    "pollsters": sorted(db["polls"].distinct("pollster"))})
+
+
+@api.get("/data/elections")
+def data_elections():
+    """Elenco elezioni con n. unità e top partito (nazionale o aggregato)."""
+    db = get_db()
+    from consenso.db.schema import PARTY_RESULTS
+    etype = request.args.get("type")
+    q = {"type": etype} if etype else {}
+    out = []
+    for e in db["elections"].find(q, {"type": 1, "date": 1}).sort("date", -1):
+        n = len(db[PARTY_RESULTS].distinct("geo_id", {"election_id": e["_id"]}))
+        out.append({"id": e["_id"], "type": e["type"], "date": e["date"], "n_units": n,
+                    "manual": e["_id"].endswith("_manual")})
+    return jsonify({"elections": out})
+
+
+@api.get("/data/election")
+def data_election():
+    """Dettaglio di una elezione: quote aggregate per partito."""
+    db = get_db()
+    from consenso.db.schema import PARTY_RESULTS
+    eid = request.args.get("id")
+    if not eid:
+        return jsonify({"error": "param 'id' richiesto"}), 400
+    agg, tot = {}, 0
+    for r in db[PARTY_RESULTS].find({"election_id": eid}, {"party_id": 1, "votes": 1}):
+        tot += r.get("votes", 0)
+        if r.get("party_id"):
+            agg[r["party_id"].replace("party:", "")] = agg.get(r["party_id"].replace("party:", ""), 0) + r["votes"]
+    shares = {p: round(100 * v / tot, 1) for p, v in agg.items()} if tot else {}
+    return jsonify({"id": eid, "shares": dict(sorted(shares.items(), key=lambda x: -x[1]))})
+
+
 @api.post("/data/poll")
 def data_poll():
     b = request.get_json(force=True, silent=True) or {}

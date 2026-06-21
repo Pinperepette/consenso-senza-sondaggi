@@ -365,6 +365,27 @@
 
   <section class="tab" id="tab-dati">
     <div class="card">
+      <h3>🗄 Cosa c'è nel database <span class="muted">— consultazione</span></h3>
+      <div id="dt-ov-chips" class="kpi" style="margin-bottom:8px"></div>
+      <div class="grid g2" style="margin-top:6px">
+        <div>
+          <div class="save-row" style="margin:0 0 8px">
+            <b style="font-size:13px">📊 Sondaggi</b>
+            <select id="dt-ov-pollster"><option value="">tutti gli istituti</option></select>
+          </div>
+          <div id="dt-ov-polls" style="max-height:340px;overflow:auto"></div>
+        </div>
+        <div>
+          <div class="save-row" style="margin:0 0 8px">
+            <b style="font-size:13px">🗳 Elezioni</b>
+            <select id="dt-ov-etype"><option value="">tutti i tipi</option><option>comunali</option><option>regionali</option><option>politiche</option><option>europee</option></select>
+          </div>
+          <div id="dt-ov-elections" style="max-height:340px;overflow:auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
       <h3>✍️ Inserimento dati manuale <span class="muted">— ciò che non abbiamo (sondaggi, risultati)</span></h3>
       <div class="hint">Dati marcati "manuale" e <b>rimovibili</b>. Incolla un <b>link</b> e l'AI estrae i numeri (da <b>rivedere</b> prima di salvare).</div>
       <div style="padding:12px 14px;background:#10161d;border-radius:10px;border:1px solid var(--line)">
@@ -476,8 +497,47 @@ function initDati(){
   document.getElementById("dt-extract").onclick=dtExtract;
   document.getElementById("dt-p-save").onclick=dtSavePoll;
   document.getElementById("dt-r-save").onclick=dtSaveResult;
-  document.getElementById("dt-rm-polls").onclick=()=>dtRemove("polls","dt-p-status");
-  document.getElementById("dt-rm-res").onclick=()=>dtRemove("results","dt-r-status");
+  document.getElementById("dt-rm-polls").onclick=()=>{dtRemove("polls","dt-p-status");dtLoadPolls();dtOverview();};
+  document.getElementById("dt-rm-res").onclick=()=>{dtRemove("results","dt-r-status");dtLoadElections();dtOverview();};
+  document.getElementById("dt-ov-pollster").onchange=dtLoadPolls;
+  document.getElementById("dt-ov-etype").onchange=dtLoadElections;
+  dtOverview();dtLoadPolls();dtLoadElections();
+}
+async function dtOverview(){
+  const o=await j("/data/overview").catch(()=>null);if(!o)return;
+  const chip=(lbl,val,sub)=>`<div class="card" style="padding:10px 14px"><div class="muted" style="font-size:11px">${lbl}</div><div style="font-size:20px;font-weight:700">${val}</div><div class="muted" style="font-size:11px">${sub||''}</div></div>`;
+  const bt=o.elections_by_type||{};
+  document.getElementById("dt-ov-chips").innerHTML=
+    chip("Sondaggi",o.polls.toLocaleString('it-IT'),`${o.pollsters} istituti · ${(o.polls_span||[]).join(' → ')}`+(o.polls_manual?` · ${o.polls_manual} manuali`:''))+
+    chip("Elezioni",o.elections,Object.entries(bt).map(([k,v])=>`${k} ${v}`).join(' · '))+
+    chip("Risultati per area",o.party_results.toLocaleString('it-IT'),o.results_manual?`${o.results_manual} manuali`:'dati reali');
+  // popola filtro istituti una volta
+  const sel=document.getElementById("dt-ov-pollster");
+  if(sel.options.length<=1){const pj=await j("/data/polls?limit=1").catch(()=>({pollsters:[]}));
+    (pj.pollsters||[]).forEach(p=>{const op=document.createElement("option");op.value=p;op.textContent=p;sel.appendChild(op);});}
+}
+function dtSharesRow(sh){return DT_PARTIES.filter(p=>sh[p]!=null).map(p=>`<span style="color:${col('party:'+p)};font-size:11px;margin-right:7px">${p} <b>${sh[p]}</b></span>`).join("");}
+async function dtLoadPolls(){
+  const ps=document.getElementById("dt-ov-pollster").value;
+  const r=await j("/data/polls?limit=40"+(ps?"&pollster="+encodeURIComponent(ps):"")).catch(()=>({polls:[]}));
+  document.getElementById("dt-ov-polls").innerHTML=(r.polls||[]).map(p=>
+    `<div style="border-bottom:1px solid #141b24;padding:5px 0;font-size:12px">
+      <div><b>${p.date}</b> · ${p.pollster}${p.manual?' <span class="badge">manuale</span>':''}</div>
+      <div style="margin-top:2px">${dtSharesRow(p.shares)}</div></div>`).join("")||"<span class='muted'>nessun dato</span>";
+}
+async function dtLoadElections(){
+  const t=document.getElementById("dt-ov-etype").value;
+  const r=await j("/data/elections"+(t?"?type="+t:"")).catch(()=>({elections:[]}));
+  document.getElementById("dt-ov-elections").innerHTML=(r.elections||[]).map(e=>
+    `<div class="dt-el" data-id="${e.id}" style="border-bottom:1px solid #141b24;padding:5px 0;font-size:12px;cursor:pointer">
+      <div><b>${e.date}</b> · ${e.type} <span class="muted">· ${e.n_units} unità</span>${e.manual?' <span class="badge">manuale</span>':''}</div>
+      <div class="dt-el-det" style="margin-top:3px"></div></div>`).join("")||"<span class='muted'>nessun dato</span>";
+  document.querySelectorAll("#dt-ov-elections .dt-el").forEach(el=>el.onclick=async()=>{
+    const det=el.querySelector(".dt-el-det");
+    if(det.dataset.open){det.innerHTML="";det.dataset.open="";return;}
+    det.innerHTML="<span class='muted'>…</span>";det.dataset.open="1";
+    const d=await j("/data/election?id="+encodeURIComponent(el.dataset.id)).catch(()=>({shares:{}}));
+    det.innerHTML=dtSharesRow(d.shares)||"<span class='muted'>nessuna quota mappata</span>";});
 }
 async function dtPost(url,body){return fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(r=>r.json());}
 async function dtExtract(){
@@ -499,11 +559,13 @@ async function dtSavePoll(){
   const st=document.getElementById("dt-p-status");
   const r=await dtPost("/data/poll",{date:document.getElementById("dt-p-date").value,pollster:document.getElementById("dt-p-pollster").value,shares:dtGather("dt-p-shares")});
   st.textContent=r.error?("⚠️ "+r.error):("✓ "+r.inserted+" quote salvate");
+  if(!r.error){dtLoadPolls();dtOverview();}
 }
 async function dtSaveResult(){
   const st=document.getElementById("dt-r-status");
   const r=await dtPost("/data/result",{date:document.getElementById("dt-r-date").value,type:document.getElementById("dt-r-type").value,region:document.getElementById("dt-r-region").value,comune:document.getElementById("dt-r-comune").value,shares:dtGather("dt-r-shares")});
   st.textContent=r.error?("⚠️ "+r.error):("✓ "+r.geo_id+" ("+r.inserted+")");
+  if(!r.error){dtLoadElections();dtOverview();}
 }
 async function dtRemove(kind,stid){
   const r=await dtPost("/data/remove",{kind});
