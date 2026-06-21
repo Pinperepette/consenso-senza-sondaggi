@@ -52,6 +52,17 @@ def forecast_adjusted(as_of: Optional[str] = None) -> dict:
     sw = swings()["parties"]
     disc = {p["party"]: p["discrepancy"] for p in sw}  # poll - urne
     validity = _validity(sw)
+    # corroborazione regionale indipendente (Veneto/Campania/Puglia)
+    try:
+        from consenso.model.corroboration import regional_corroboration
+        corr = regional_corroboration()
+    except Exception:  # noqa: BLE001
+        corr = {"available": False}
+    validity["corroborated"] = bool(corr.get("corroborates"))
+    validity["regional"] = corr
+    if corr.get("corroborates"):
+        validity["note"] += (" Corroborata dalle regionali (Veneto/Campania/Puglia): "
+                             "stesso pattern, controlli a posto.")
     out = []
     for p in nc["parties"]:
         name = p["name"]
